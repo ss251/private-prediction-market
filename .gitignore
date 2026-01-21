@@ -42,3 +42,8 @@ coverage/
 # Misc
 *.pem
 .cache/
+
+# Competitive Advantage - Keep Private
+CLAUDE.md
+ai/
+research/
