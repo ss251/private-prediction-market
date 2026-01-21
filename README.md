@@ -80,7 +80,6 @@ leo build
 
 ```
 private-prediction-market/
-├── ai/                    # AI context files
 ├── contracts/             # Leo smart contracts
 │   └── prediction_market/
 ├── frontend/              # React app
