@@ -1,0 +1,69 @@
+name: Deploy Contract
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: 'Network to deploy to'
+        required: true
+        default: 'testnet'
+        type: choice
+        options:
+          - testnet
+          - mainnet
+      fee:
+        description: 'Deployment fee (microcredits)'
+        required: true
+        default: '1900000'
+
+env:
+  LEO_VERSION: "2.0.0"
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.network }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.network }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Cache Leo
+        uses: actions/cache@v3
+        with:
+          path: ~/.leo
+          key: leo-${{ env.LEO_VERSION }}
+
+      - name: Install Leo
+        run: |
+          if ! command -v leo &> /dev/null; then
+            curl -L https://raw.githubusercontent.com/ProvableHQ/leo/main/install.sh | sh
+          fi
+          echo "$HOME/.leo/bin" >> $GITHUB_PATH
+
+      - name: Install snarkOS
+        run: |
+          cargo install snarkos --git https://github.com/AleoNet/snarkOS.git --locked
+
+      - name: Build contract
+        run: leo build
+        working-directory: contracts/prediction_market
+
+      - name: Deploy contract
+        run: |
+          snarkos developer deploy prediction_market.aleo \
+            --private-key ${{ secrets.DEPLOYER_PRIVATE_KEY }} \
+            --query "https://api.explorer.provable.com/v1" \
+            --broadcast "https://api.explorer.provable.com/v1/${{ inputs.network }}/transaction/broadcast" \
+            --priority-fee ${{ inputs.fee }}
+        working-directory: contracts/prediction_market
+
+      - name: Log deployment
+        run: |
+          echo "Deployed prediction_market.aleo to ${{ inputs.network }}"
+          echo "Fee: ${{ inputs.fee }} microcredits"
