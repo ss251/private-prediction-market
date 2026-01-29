@@ -347,3 +347,44 @@ export function formatPool(microcredits: bigint): string {
   }
   return credits.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
+
+// Check if the deployed contract supports oracle mappings
+export async function contractSupportsOracle(): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `${API_URL}/program/${PROGRAM_ID}`
+    );
+    if (!response.ok) return false;
+    const source = await response.text();
+    return source.includes("oracle_enabled") && source.includes("set_market_oracle");
+  } catch {
+    return false;
+  }
+}
+
+// Get admin address from the on-chain admin mapping (singleton: true => address)
+export async function getAdminAddress(): Promise<string | null> {
+  const raw = await getMappingValue("admin", "true");
+  if (!raw || raw === "null") return null;
+  return parseAleoAddress(raw) ?? null;
+}
+
+// Get the current market count from on-chain registry
+export async function getMarketCount(): Promise<number> {
+  const raw = await getMappingValue("market_count", "true");
+  if (!raw || raw === "null") return 0;
+  return Number(parseAleoValue(raw));
+}
+
+// Estimate a future block height for a target date.
+// Aleo produces ~1 block per 5 seconds (12 blocks/min).
+const ALEO_BLOCK_TIME_SECONDS = 5;
+
+export async function estimateBlockHeight(targetDate: Date): Promise<number> {
+  const currentHeight = await getLatestHeight();
+  const now = Date.now();
+  const targetMs = targetDate.getTime();
+  const diffSeconds = Math.max(0, (targetMs - now) / 1000);
+  const blocksAhead = Math.ceil(diffSeconds / ALEO_BLOCK_TIME_SECONDS);
+  return currentHeight + blocksAhead;
+}

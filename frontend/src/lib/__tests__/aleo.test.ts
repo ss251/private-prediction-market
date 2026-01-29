@@ -5,6 +5,9 @@ import {
   formatPool,
   getAllMarketIds,
   getOracleAttestedData,
+  getAdminAddress,
+  getMarketCount,
+  estimateBlockHeight,
   PROGRAM_ID,
   ORACLE_PROGRAM_ID,
 } from "../aleo";
@@ -193,6 +196,117 @@ describe("aleo utilities", () => {
 
       const result = await getOracleAttestedData(12345n);
       expect(result).toBeNull();
+    });
+  });
+
+  describe("getAdminAddress", () => {
+    beforeEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("returns admin address when set", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        text: () =>
+          Promise.resolve(
+            '"aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc"'
+          ),
+      });
+
+      const result = await getAdminAddress();
+      expect(result).toBe(
+        "aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc"
+      );
+    });
+
+    it("returns null when not set", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+      });
+
+      const result = await getAdminAddress();
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("getMarketCount", () => {
+    beforeEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("returns count when set", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve('"5u64"'),
+      });
+
+      const result = await getMarketCount();
+      expect(result).toBe(5);
+    });
+
+    it("returns 0 when not set", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+      });
+
+      const result = await getMarketCount();
+      expect(result).toBe(0);
+    });
+
+    it("returns 0 for null value", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve('"null"'),
+      });
+
+      const result = await getMarketCount();
+      expect(result).toBe(0);
+    });
+  });
+
+  describe("estimateBlockHeight", () => {
+    beforeEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("returns current height for past dates", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve("100000"),
+      });
+
+      const pastDate = new Date(Date.now() - 86400 * 1000);
+      const result = await estimateBlockHeight(pastDate);
+      // For past dates, diffSeconds is 0, so blocksAhead is 0
+      expect(result).toBe(100000);
+    });
+
+    it("estimates future block height correctly", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve("100000"),
+      });
+
+      // 1 hour from now = 3600 seconds / 5 = 720 blocks
+      const futureDate = new Date(Date.now() + 3600 * 1000);
+      const result = await estimateBlockHeight(futureDate);
+      // Allow some tolerance for timing
+      expect(result).toBeGreaterThanOrEqual(100700);
+      expect(result).toBeLessThanOrEqual(100721);
+    });
+
+    it("handles getLatestHeight returning 0", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      });
+
+      const futureDate = new Date(Date.now() + 3600 * 1000);
+      const result = await estimateBlockHeight(futureDate);
+      // Should still compute blocks ahead even with height 0
+      expect(result).toBeGreaterThan(0);
     });
   });
 });

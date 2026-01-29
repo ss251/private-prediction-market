@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
 import {
   Transaction,
@@ -6,17 +6,11 @@ import {
 } from "@demox-labs/aleo-wallet-adapter-base";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
-import {
-  PROGRAM_ID,
-  getOracleAttestedData,
-  formatCredits,
-} from "../lib/aleo";
+import { PROGRAM_ID, formatCredits } from "../lib/aleo";
 
-interface OracleResolveModalProps {
+interface ResolveModalProps {
   marketId: string;
   question: string;
-  priceThreshold: bigint;
-  oracleRequestHash: bigint;
   yesPool: bigint;
   noPool: bigint;
   isOpen: boolean;
@@ -24,57 +18,22 @@ interface OracleResolveModalProps {
   onResolved?: () => void;
 }
 
-export function OracleResolveModal({
+export function ResolveModal({
   marketId,
   question,
-  priceThreshold,
-  oracleRequestHash,
   yesPool,
   noPool,
   isOpen,
   onClose,
   onResolved,
-}: OracleResolveModalProps) {
+}: ResolveModalProps) {
   const { publicKey, requestTransaction, transactionStatus, getExecution } =
     useWallet();
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
 
-  const [oracleData, setOracleData] = useState<{
-    data: bigint;
-    timestamp: bigint;
-  } | null>(null);
-  const [oracleLoading, setOracleLoading] = useState(false);
-  const [oracleError, setOracleError] = useState<string | null>(null);
-
-  // Check oracle data availability on mount
-  useEffect(() => {
-    if (!isOpen) return;
-    checkOracleData();
-  }, [isOpen, oracleRequestHash]);
-
-  async function checkOracleData() {
-    setOracleLoading(true);
-    setOracleError(null);
-    try {
-      const data = await getOracleAttestedData(oracleRequestHash);
-      setOracleData(data);
-      if (!data) {
-        setOracleError(
-          "Oracle data not yet available on-chain. The attestation must be submitted to official_oracle_v2.aleo first."
-        );
-      }
-    } catch {
-      setOracleError("Failed to check oracle data.");
-    } finally {
-      setOracleLoading(false);
-    }
-  }
+  const [outcome, setOutcome] = useState<boolean>(true);
 
   if (!isOpen) return null;
-
-  const predictedOutcome = oracleData
-    ? oracleData.data >= priceThreshold
-    : null;
 
   const totalPool = yesPool + noPool;
 
@@ -87,8 +46,8 @@ export function OracleResolveModal({
           publicKey,
           WalletAdapterNetwork.TestnetBeta,
           PROGRAM_ID,
-          "resolve_with_oracle",
-          [marketId],
+          "resolve_market",
+          [marketId, `${outcome}`],
           500_000
         );
 
@@ -105,6 +64,7 @@ export function OracleResolveModal({
 
   const handleClose = () => {
     reset();
+    setOutcome(true);
     onClose();
   };
 
@@ -113,9 +73,9 @@ export function OracleResolveModal({
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-xl max-w-md w-full p-6 border border-gray-700">
+      <div className="bg-gray-800 rounded-xl max-w-md w-full p-6 border border-gray-700 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-start mb-4">
-          <h2 className="text-xl font-bold text-white">Oracle Resolution</h2>
+          <h2 className="text-xl font-bold text-white">Resolve Market</h2>
           <button
             onClick={handleClose}
             disabled={isExecuting}
@@ -136,71 +96,48 @@ export function OracleResolveModal({
             </span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Price Threshold:</span>
-            <span className="text-white font-mono">
-              {priceThreshold.toString()}
+            <span className="text-gray-400">YES Pool:</span>
+            <span className="text-green-400 font-mono">
+              {formatCredits(yesPool)}
             </span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Oracle Request:</span>
-            <span className="text-white font-mono text-xs truncate max-w-[200px]">
-              {oracleRequestHash.toString()}
+            <span className="text-gray-400">NO Pool:</span>
+            <span className="text-red-400 font-mono">
+              {formatCredits(noPool)}
             </span>
           </div>
         </div>
 
-        {/* Oracle data status */}
-        {oracleLoading && (
-          <div className="mb-4 p-3 bg-gray-700/50 rounded-lg text-gray-400 text-center animate-pulse">
-            Checking oracle data...
-          </div>
-        )}
-
-        {oracleError && (
-          <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-700 rounded-lg text-yellow-400 text-sm">
-            {oracleError}
-            <button
-              onClick={checkOracleData}
-              className="block mt-2 text-yellow-300 hover:text-yellow-200 underline text-xs"
-            >
-              Refresh
-            </button>
-          </div>
-        )}
-
-        {oracleData && (
-          <div className="mb-4 space-y-2">
-            <div className="bg-gray-700/50 rounded-lg p-3 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Attested Value:</span>
-                <span className="text-white font-mono font-bold">
-                  {oracleData.data.toString()}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Attestation Time:</span>
-                <span className="text-gray-300 font-mono text-xs">
-                  {new Date(
-                    Number(oracleData.timestamp) * 1000
-                  ).toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            {/* Predicted outcome */}
-            <div
-              className={`p-3 rounded-lg text-center font-bold ${
-                predictedOutcome
-                  ? "bg-green-900/50 text-green-400 border border-green-700"
-                  : "bg-red-900/50 text-red-400 border border-red-700"
-              }`}
-            >
-              Predicted Outcome: {predictedOutcome ? "YES" : "NO"} wins
-              <div className="text-xs font-normal mt-1 opacity-75">
-                {oracleData.data.toString()}{" "}
-                {predictedOutcome ? ">=" : "<"}{" "}
-                {priceThreshold.toString()} (threshold)
-              </div>
+        {/* Outcome selection */}
+        {state === "idle" && (
+          <div className="mb-4 space-y-3">
+            <p className="text-sm text-gray-400">
+              Select the winning outcome for this market.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setOutcome(true)}
+                className={`flex-1 py-3 rounded-lg text-sm font-bold transition-colors ${
+                  outcome
+                    ? "bg-green-600 text-white"
+                    : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+                }`}
+              >
+                YES wins
+              </button>
+              <button
+                type="button"
+                onClick={() => setOutcome(false)}
+                className={`flex-1 py-3 rounded-lg text-sm font-bold transition-colors ${
+                  !outcome
+                    ? "bg-red-600 text-white"
+                    : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+                }`}
+              >
+                NO wins
+              </button>
             </div>
           </div>
         )}
@@ -209,9 +146,9 @@ export function OracleResolveModal({
         <div className="text-xs text-gray-500 mb-4 flex items-start gap-2">
           <span>&#9432;</span>
           <span>
-            Oracle resolution reads attested data from official_oracle_v2.aleo
-            and compares against the configured price threshold. YES wins if the
-            attested value is greater than or equal to the threshold.
+            Only the contract admin can resolve markets. This calls
+            resolve_market on-chain. Winning bettors can then claim their
+            payouts.
           </span>
         </div>
 
@@ -224,21 +161,16 @@ export function OracleResolveModal({
         />
 
         {/* Action buttons */}
-        {state === "idle" && oracleData && (
+        {state === "idle" && (
           <button
             onClick={handleResolve}
-            className="w-full py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-bold transition-colors"
+            className={`w-full py-3 rounded-lg text-white font-bold transition-colors ${
+              outcome
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-red-600 hover:bg-red-700"
+            }`}
           >
-            Resolve with Oracle
-          </button>
-        )}
-
-        {state === "idle" && !oracleData && !oracleLoading && (
-          <button
-            onClick={handleClose}
-            className="w-full py-3 bg-gray-600 hover:bg-gray-700 rounded-lg text-white font-bold transition-colors"
-          >
-            Close
+            Resolve as {outcome ? "YES" : "NO"}
           </button>
         )}
 
@@ -263,7 +195,7 @@ export function OracleResolveModal({
           </button>
         )}
 
-        {state === "failed" && oracleData && (
+        {state === "failed" && (
           <button
             onClick={handleResolve}
             className="w-full py-3 bg-red-600 hover:bg-red-700 rounded-lg text-white font-bold transition-colors"

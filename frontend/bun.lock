@@ -11,6 +11,7 @@
         "@demox-labs/aleo-wallet-adapter-reactui": "^0.0.36",
         "@provablehq/sdk": "^0.9.15",
         "@tanstack/react-query": "^5.90.20",
+        "@zkportal/aleo-oracle-sdk": "^2.1.1",
         "comlink": "^4.4.2",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
@@ -366,6 +367,8 @@
     "@vitest/spy": ["@vitest/spy@4.0.18", "", {}, "sha512-cbQt3PTSD7P2OARdVW3qWER5EGq7PHlvE+QfzSC0lbwO+xnt7+XH06ZzFjFRgzUX//JmpxrCu92VdwvEPlWSNw=="],
 
     "@vitest/utils": ["@vitest/utils@4.0.18", "", { "dependencies": { "@vitest/pretty-format": "4.0.18", "tinyrainbow": "^3.0.3" } }, "sha512-msMRKLMVLWygpK3u2Hybgi4MNjcYJvwTb0Ru09+fOyCXIgT5raYP041DRRdiJiI3k/2U6SEbAETB3YtBrUkCFA=="],
+
+    "@zkportal/aleo-oracle-sdk": ["@zkportal/aleo-oracle-sdk@2.1.1", "", {}, "sha512-PkAHgj2UO/HEz6Ti13A7tKn4ooxHfo4XhefaRf4zAz3S4X9v2Dln2nNSD/fD+3ad5lnianFM99U4gpBGmBD9pg=="],
 
     "acorn": ["acorn@8.15.0", "", { "bin": { "acorn": "bin/acorn" } }, "sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg=="],
 

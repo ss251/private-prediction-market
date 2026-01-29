@@ -13,7 +13,6 @@ interface Market {
   bettorCount?: number;
   paused?: boolean;
   endTime?: number;
-  oracleEnabled?: boolean;
 }
 
 interface MarketCardProps {
@@ -22,11 +21,11 @@ interface MarketCardProps {
   onClaim?: () => void;
   onRefund?: () => void;
   onViewHistory?: () => void;
-  onOracleResolve?: () => void;
+  onResolve?: () => void;
   userPosition?: OnChainPosition | null;
 }
 
-export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, onOracleResolve, userPosition }: MarketCardProps) {
+export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, onResolve, userPosition }: MarketCardProps) {
   const { connected } = useWallet();
   const totalPool = market.yesPool + market.noPool;
   const yesPercent = totalPool > 0 ? (market.yesPool / totalPool) * 100 : 50;
@@ -44,11 +43,6 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, on
           {market.question}
         </h3>
         <div className="flex items-center gap-2 ml-2">
-          {market.oracleEnabled && (
-            <span className="text-xs px-2 py-1 rounded bg-purple-900/50 text-purple-400 border border-purple-700 whitespace-nowrap">
-              ORACLE
-            </span>
-          )}
           {market.paused && (
             <span className="text-xs px-2 py-1 rounded bg-yellow-900/50 text-yellow-400 border border-yellow-700 whitespace-nowrap">
               PAUSED
@@ -145,12 +139,12 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, on
             </span>
           )}
 
-          {market.status === "closed" && market.oracleEnabled && (
+          {market.status === "closed" && (
             <button
-              onClick={onOracleResolve}
+              onClick={onResolve}
               className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-medium transition-colors"
             >
-              Resolve (Oracle)
+              Resolve
             </button>
           )}
 

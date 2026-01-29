@@ -6,7 +6,8 @@ import { BetModal } from "./BetModal";
 import { ClaimModal } from "./ClaimModal";
 import { RefundModal } from "./RefundModal";
 import { MarketHistory } from "./MarketHistory";
-import { OracleResolveModal } from "./OracleResolveModal";
+import { ResolveModal } from "./OracleResolveModal";
+import { CreateMarketModal } from "./CreateMarketModal";
 import {
   getAllMarketIds,
   getMarkets,
@@ -35,7 +36,6 @@ interface DisplayMarket {
   bettorCount: number;
   paused?: boolean;
   endTime?: number;
-  oracleEnabled?: boolean;
 }
 
 function toDisplayMarket(
@@ -62,11 +62,10 @@ function toDisplayMarket(
     bettorCount: market.bettorCount,
     paused: market.paused,
     endTime: market.endTime,
-    oracleEnabled: market.oracleEnabled,
   };
 }
 
-type ModalType = "bet" | "claim" | "refund" | "history" | "oracle";
+type ModalType = "bet" | "claim" | "refund" | "history" | "resolve" | "create";
 
 export function MarketList() {
   const { connected, publicKey } = useWallet();
@@ -143,9 +142,9 @@ export function MarketList() {
     setActiveModal("history");
   };
 
-  const handleOracleResolve = (market: DisplayMarket) => {
+  const handleResolve = (market: DisplayMarket) => {
     setSelectedMarket(market);
-    setActiveModal("oracle");
+    setActiveModal("resolve");
   };
 
   const handleModalClose = () => {
@@ -190,11 +189,21 @@ export function MarketList() {
             <span className="text-sm text-yellow-500">Using cached data</span>
           )}
         </div>
-        {!connected && (
-          <p className="text-gray-400 text-sm">
-            Connect wallet to place bets
-          </p>
-        )}
+        <div className="flex items-center gap-3">
+          {connected && (
+            <button
+              onClick={() => setActiveModal("create")}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-bold transition-colors"
+            >
+              + Create Market
+            </button>
+          )}
+          {!connected && (
+            <p className="text-gray-400 text-sm">
+              Connect wallet to place bets
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -209,7 +218,7 @@ export function MarketList() {
               onClaim={() => handleClaim(market)}
               onRefund={() => handleRefund(market)}
               onViewHistory={() => handleViewHistory(market)}
-              onOracleResolve={() => handleOracleResolve(market)}
+              onResolve={() => handleResolve(market)}
               userPosition={position}
             />
           );
@@ -223,6 +232,17 @@ export function MarketList() {
             Markets will appear here once they are created on-chain.
           </p>
         </div>
+      )}
+
+      {/* Create Market Modal (admin only) */}
+      {activeModal === "create" && (
+        <CreateMarketModal
+          isOpen={true}
+          onClose={handleModalClose}
+          onCreated={() => {
+            refetch();
+          }}
+        />
       )}
 
       {/* Bet Modal */}
@@ -268,17 +288,13 @@ export function MarketList() {
         />
       )}
 
-      {/* Oracle Resolve Modal */}
+      {/* Resolve Modal */}
       {selectedMarket &&
-        activeModal === "oracle" &&
-        selectedChainMarket?.oracleEnabled &&
-        selectedChainMarket.priceThreshold !== undefined &&
-        selectedChainMarket.oracleRequestHash !== undefined && (
-          <OracleResolveModal
+        activeModal === "resolve" &&
+        selectedChainMarket && (
+          <ResolveModal
             marketId={selectedMarket.id}
             question={selectedMarket.question}
-            priceThreshold={selectedChainMarket.priceThreshold}
-            oracleRequestHash={selectedChainMarket.oracleRequestHash}
             yesPool={selectedChainMarket.yesPool}
             noPool={selectedChainMarket.noPool}
             isOpen={true}

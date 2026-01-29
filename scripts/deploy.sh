@@ -10,16 +10,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 CONTRACT_DIR="$PROJECT_ROOT/contracts/prediction_market"
 
-# Load environment variables
+# Load environment variables from contract .env
+if [ -f "$CONTRACT_DIR/.env" ]; then
+    export $(grep -v '^#' "$CONTRACT_DIR/.env" | xargs)
+fi
 if [ -f "$PROJECT_ROOT/.env" ]; then
     export $(grep -v '^#' "$PROJECT_ROOT/.env" | xargs)
 fi
 
-# Validate required variables
-if [ -z "$ADMIN_PRIVATE_KEY" ]; then
-    echo "Error: ADMIN_PRIVATE_KEY not set in .env"
+# Use PRIVATE_KEY or ADMIN_PRIVATE_KEY
+DEPLOY_KEY="${PRIVATE_KEY:-$ADMIN_PRIVATE_KEY}"
+if [ -z "$DEPLOY_KEY" ]; then
+    echo "Error: PRIVATE_KEY or ADMIN_PRIVATE_KEY not set in .env"
     exit 1
 fi
+
+# Read program name from program.json
+PROGRAM_NAME=$(python3 -c "import json; print(json.load(open('$CONTRACT_DIR/program.json'))['program'])" 2>/dev/null || echo "prediction_market_test003.aleo")
 
 # Set network endpoints
 if [ "$NETWORK" = "mainnet" ]; then
@@ -33,7 +40,7 @@ else
 fi
 
 echo "============================================"
-echo "Deploying prediction_market.aleo"
+echo "Deploying $PROGRAM_NAME"
 echo "Network: $NETWORK"
 echo "Fee: $FEE microcredits"
 echo "============================================"
@@ -45,8 +52,8 @@ leo build
 
 # Deploy
 echo "Deploying..."
-snarkos developer deploy prediction_market.aleo \
-    --private-key "$ADMIN_PRIVATE_KEY" \
+snarkos developer deploy "$PROGRAM_NAME" \
+    --private-key "$DEPLOY_KEY" \
     --query "$API_ENDPOINT" \
     --broadcast "$BROADCAST_ENDPOINT" \
     --priority-fee "$FEE"
