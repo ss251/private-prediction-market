@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'url'
@@ -31,5 +32,10 @@ export default defineConfig({
   },
   worker: {
     format: 'es', // ES modules in workers
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: [],
   },
 })

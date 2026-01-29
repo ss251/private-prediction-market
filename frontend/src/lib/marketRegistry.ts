@@ -13,6 +13,11 @@ export interface MarketRegistry {
 
 let cachedRegistry: MarketRegistry | null = null;
 
+/** @internal Clear cache — for testing only */
+export function _clearRegistryCache() {
+  cachedRegistry = null;
+}
+
 export async function fetchMarketRegistry(): Promise<MarketRegistry> {
   if (cachedRegistry) return cachedRegistry;
   const res = await fetch("/markets.json");

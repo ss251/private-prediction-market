@@ -6,6 +6,7 @@ import { BetModal } from "./BetModal";
 import { ClaimModal } from "./ClaimModal";
 import { RefundModal } from "./RefundModal";
 import { MarketHistory } from "./MarketHistory";
+import { OracleResolveModal } from "./OracleResolveModal";
 import {
   getAllMarketIds,
   getMarkets,
@@ -34,6 +35,7 @@ interface DisplayMarket {
   bettorCount: number;
   paused?: boolean;
   endTime?: number;
+  oracleEnabled?: boolean;
 }
 
 function toDisplayMarket(
@@ -60,10 +62,11 @@ function toDisplayMarket(
     bettorCount: market.bettorCount,
     paused: market.paused,
     endTime: market.endTime,
+    oracleEnabled: market.oracleEnabled,
   };
 }
 
-type ModalType = "bet" | "claim" | "refund" | "history";
+type ModalType = "bet" | "claim" | "refund" | "history" | "oracle";
 
 export function MarketList() {
   const { connected, publicKey } = useWallet();
@@ -140,6 +143,11 @@ export function MarketList() {
     setActiveModal("history");
   };
 
+  const handleOracleResolve = (market: DisplayMarket) => {
+    setSelectedMarket(market);
+    setActiveModal("oracle");
+  };
+
   const handleModalClose = () => {
     setActiveModal(null);
     refetch();
@@ -201,6 +209,7 @@ export function MarketList() {
               onClaim={() => handleClaim(market)}
               onRefund={() => handleRefund(market)}
               onViewHistory={() => handleViewHistory(market)}
+              onOracleResolve={() => handleOracleResolve(market)}
               userPosition={position}
             />
           );
@@ -258,6 +267,28 @@ export function MarketList() {
           onRefunded={handleRefunded}
         />
       )}
+
+      {/* Oracle Resolve Modal */}
+      {selectedMarket &&
+        activeModal === "oracle" &&
+        selectedChainMarket?.oracleEnabled &&
+        selectedChainMarket.priceThreshold !== undefined &&
+        selectedChainMarket.oracleRequestHash !== undefined && (
+          <OracleResolveModal
+            marketId={selectedMarket.id}
+            question={selectedMarket.question}
+            priceThreshold={selectedChainMarket.priceThreshold}
+            oracleRequestHash={selectedChainMarket.oracleRequestHash}
+            yesPool={selectedChainMarket.yesPool}
+            noPool={selectedChainMarket.noPool}
+            isOpen={true}
+            onClose={handleModalClose}
+            onResolved={() => {
+              refetch();
+              refetchPositions();
+            }}
+          />
+        )}
 
       {/* Market History Modal */}
       {selectedMarket && activeModal === "history" && (

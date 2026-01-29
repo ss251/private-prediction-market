@@ -1,7 +1,7 @@
 // Network client for querying Aleo chain state
 
 const API_URL = "https://api.explorer.provable.com/v1/testnet";
-export const PROGRAM_ID = "prediction_market_test002.aleo";
+export const PROGRAM_ID = "prediction_market_test003.aleo";
 
 // Market status constants (matches contract)
 export const MarketStatus = {
@@ -26,6 +26,9 @@ export interface MarketData {
   yesLabelHash?: string;
   noLabelHash?: string;
   estimatedFees?: bigint;
+  oracleEnabled?: boolean;
+  priceThreshold?: bigint;
+  oracleRequestHash?: bigint;
 }
 
 // Parse Aleo value (e.g., "1000u64" -> 1000n)
@@ -103,6 +106,9 @@ export async function getMarketData(marketId: string): Promise<MarketData | null
       yesLabelRaw,
       noLabelRaw,
       estimatedFeesRaw,
+      oracleEnabledRaw,
+      priceThresholdRaw,
+      oracleRequestHashRaw,
     ] = await Promise.all([
       getMappingValue("market_status", marketId),
       getMappingValue("yes_pool", marketId),
@@ -115,6 +121,9 @@ export async function getMarketData(marketId: string): Promise<MarketData | null
       getMappingValue("market_yes_label", marketId),
       getMappingValue("market_no_label", marketId),
       getMappingValue("estimated_fees", marketId),
+      getMappingValue("oracle_enabled", marketId),
+      getMappingValue("price_threshold", marketId),
+      getMappingValue("oracle_request_hash", marketId),
     ]);
 
     const status = parseAleoU8(statusRaw);
@@ -135,6 +144,9 @@ export async function getMarketData(marketId: string): Promise<MarketData | null
       yesLabelHash: parseAleoField(yesLabelRaw),
       noLabelHash: parseAleoField(noLabelRaw),
       estimatedFees: parseAleoValue(estimatedFeesRaw),
+      oracleEnabled: parseAleoBool(oracleEnabledRaw) ?? false,
+      priceThreshold: oracleEnabledRaw ? parseAleoValue(priceThresholdRaw) : undefined,
+      oracleRequestHash: oracleEnabledRaw ? parseAleoValue(oracleRequestHashRaw) : undefined,
     };
   } catch (error) {
     console.error(`Failed to fetch market ${marketId}:`, error);
@@ -266,6 +278,33 @@ export async function getLatestHeight(): Promise<number> {
     return parseInt(await response.text());
   } catch {
     return 0;
+  }
+}
+
+// Oracle constants
+export const ORACLE_PROGRAM_ID = "official_oracle_v2.aleo";
+
+// Check if oracle data is available on-chain for a given request hash
+export async function getOracleAttestedData(
+  requestHash: bigint
+): Promise<{ data: bigint; timestamp: bigint } | null> {
+  try {
+    const response = await fetch(
+      `${API_URL}/program/${ORACLE_PROGRAM_ID}/mapping/sgx_attested_data/${requestHash}u128`
+    );
+    if (!response.ok) return null;
+    const raw = await response.text();
+    const cleaned = raw.replace(/^"|"$/g, "");
+    // Parse struct: { data: 12345u128, attestation_timestamp: 67890u128 }
+    const dataMatch = cleaned.match(/data:\s*(\d+)u128/);
+    const tsMatch = cleaned.match(/attestation_timestamp:\s*(\d+)u128/);
+    if (!dataMatch || !tsMatch) return null;
+    return {
+      data: BigInt(dataMatch[1]),
+      timestamp: BigInt(tsMatch[1]),
+    };
+  } catch {
+    return null;
   }
 }
 
