@@ -1,5 +1,6 @@
 import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
 import { formatPool } from "../lib/aleo";
+import type { OnChainPosition } from "../hooks/useUserPositions";
 
 interface Market {
   id: string;
@@ -20,10 +21,10 @@ interface MarketCardProps {
   onClaim?: () => void;
   onRefund?: () => void;
   onViewHistory?: () => void;
-  userHasBets?: boolean;
+  userPosition?: OnChainPosition | null;
 }
 
-export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, userHasBets }: MarketCardProps) {
+export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, userPosition }: MarketCardProps) {
   const { connected } = useWallet();
   const totalPool = market.yesPool + market.noPool;
   const yesPercent = totalPool > 0 ? (market.yesPool / totalPool) * 100 : 50;
@@ -135,7 +136,7 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, us
             </span>
           )}
 
-          {market.status === "resolved" && userHasBets && (
+          {market.status === "resolved" && userPosition && !userPosition.claimed && (
             <button
               onClick={onClaim}
               className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white font-medium transition-colors"
@@ -144,13 +145,13 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, us
             </button>
           )}
 
-          {market.status === "resolved" && !userHasBets && (
+          {market.status === "resolved" && (!userPosition || userPosition.claimed) && (
             <span className="px-4 py-2 bg-gray-700 rounded-lg text-gray-400 text-sm">
-              Resolved
+              {userPosition?.claimed ? "Claimed" : "Resolved"}
             </span>
           )}
 
-          {market.status === "cancelled" && userHasBets && (
+          {market.status === "cancelled" && userPosition && !userPosition.claimed && (
             <button
               onClick={onRefund}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors"

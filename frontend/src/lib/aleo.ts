@@ -1,7 +1,7 @@
 // Network client for querying Aleo chain state
 
 const API_URL = "https://api.explorer.provable.com/v1/testnet";
-const PROGRAM_ID = "prediction_market_test001.aleo";
+export const PROGRAM_ID = "prediction_market_test002.aleo";
 
 // Market status constants (matches contract)
 export const MarketStatus = {
@@ -146,6 +146,34 @@ export async function getMarketData(marketId: string): Promise<MarketData | null
 export async function getMarkets(marketIds: string[]): Promise<MarketData[]> {
   const results = await Promise.all(marketIds.map(getMarketData));
   return results.filter((m): m is MarketData => m !== null);
+}
+
+// Discover all market IDs from on-chain registry
+export async function getAllMarketIds(): Promise<string[]> {
+  const countRaw = await getMappingValue("market_count", "true");
+  if (!countRaw || countRaw === "null") return [];
+  const count = Number(parseAleoValue(countRaw));
+  if (count === 0) return [];
+
+  const BATCH_SIZE = 10;
+  const ids: string[] = [];
+
+  for (let batchStart = 0; batchStart < count; batchStart += BATCH_SIZE) {
+    const batchEnd = Math.min(batchStart + BATCH_SIZE, count);
+    const batchPromises: Promise<string | null>[] = [];
+    for (let i = batchStart; i < batchEnd; i++) {
+      batchPromises.push(getMappingValue("market_ids", `${i}u64`));
+    }
+    const results = await Promise.all(batchPromises);
+    for (const raw of results) {
+      if (raw && raw !== "null") {
+        // Value comes back as e.g. "1field" — keep as-is
+        ids.push(raw);
+      }
+    }
+  }
+
+  return ids;
 }
 
 // Get market metadata (convenience wrapper for new fields)

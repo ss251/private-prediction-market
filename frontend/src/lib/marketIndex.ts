@@ -35,7 +35,7 @@ async function computeBettorKey(
 }
 
 // Compute BHP256 hash for a UserKey (market_id + address)
-async function computeUserKey(
+export async function computeUserKey(
   marketId: string,
   address: string
 ): Promise<string> {

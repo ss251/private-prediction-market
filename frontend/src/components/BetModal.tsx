@@ -6,7 +6,7 @@ import {
 } from "@demox-labs/aleo-wallet-adapter-base";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
-import { getPublicBalance, formatCredits } from "../lib/aleo";
+import { getPublicBalance, formatCredits, PROGRAM_ID } from "../lib/aleo";
 
 interface Market {
   id: string;
@@ -20,10 +20,8 @@ interface BetModalProps {
   market: Market;
   isOpen: boolean;
   onClose: () => void;
-  onBetPlaced?: (marketId: string, outcome: boolean, amount: number, txId: string) => void;
+  onBetPlaced?: () => void;
 }
-
-const PROGRAM_ID = "prediction_market_test001.aleo";
 
 export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps) {
   const { publicKey, requestTransaction, transactionStatus, getExecution } = useWallet();
@@ -82,9 +80,9 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
       { statusFn: transactionStatus, getExecutionFn: getExecution }
     );
 
-    // Track the bet in localStorage via callback
+    // Signal that a bet was placed (triggers position refetch)
     if (resultTxId && onBetPlaced) {
-      onBetPlaced(market.id, outcome === "yes", amountMicrocredits, resultTxId);
+      onBetPlaced();
     }
   };
 

@@ -3,7 +3,7 @@
 
 import credits.aleo;
 
-program prediction_market_test001.aleo {
+program prediction_market_test002.aleo {
     // ========================================
     // CONSTANTS
     // ========================================
@@ -94,6 +94,12 @@ program prediction_market_test001.aleo {
     // Running fee estimate per market (for frontend display)
     mapping estimated_fees: field => u64;
 
+    // Market registry: total number of markets created (singleton: true => count)
+    mapping market_count: bool => u64;
+
+    // Market registry: index => market_id (for enumeration)
+    mapping market_ids: u64 => field;
+
     // ========================================
     // HELPER FUNCTIONS
     // ========================================
@@ -180,6 +186,11 @@ program prediction_market_test001.aleo {
         Mapping::set(market_yes_label, market_id, yes_label_hash);
         Mapping::set(market_no_label, market_id, no_label_hash);
         Mapping::set(market_creator, market_id, caller);
+
+        // Register market in global index for enumeration
+        let current_count: u64 = Mapping::get_or_use(market_count, true, 0u64);
+        Mapping::set(market_ids, current_count, market_id);
+        Mapping::set(market_count, true, current_count + 1u64);
     }
 
     // Close betting period
@@ -353,7 +364,7 @@ program prediction_market_test001.aleo {
 
         // Transfer credits from bettor to program
         let transfer_future: Future = credits.aleo/transfer_public_as_signer(
-            prediction_market_test001.aleo,
+            prediction_market_test002.aleo,
             amount
         );
 
