@@ -1,7 +1,9 @@
 // Private Prediction Market on Aleo
 // Parimutuel betting where bet positions are private, pool totals are public
 
-program prediction_market.aleo {
+import credits.aleo;
+
+program prediction_market_test001.aleo {
     // ========================================
     // CONSTANTS
     // ========================================
@@ -35,7 +37,7 @@ program prediction_market.aleo {
     // MAPPINGS (Public State)
     // ========================================
 
-    // Market status: 0=open, 1=closed, 2=resolved
+    // Market status: 0=open, 1=closed, 2=resolved, 3=cancelled
     mapping market_status: field => u8;
 
     // Pool totals per market
@@ -68,6 +70,29 @@ program prediction_market.aleo {
 
     // Whether fees have been withdrawn for a market
     mapping fees_withdrawn: field => bool;
+
+    // --- New mappings for enhanced functionality ---
+
+    // Market betting deadline (block height)
+    mapping market_end_time: field => u32;
+
+    // YES outcome label hash (for off-chain label lookup)
+    mapping market_yes_label: field => field;
+
+    // NO outcome label hash (for off-chain label lookup)
+    mapping market_no_label: field => field;
+
+    // Market creator address
+    mapping market_creator: field => address;
+
+    // Emergency pause flag per market
+    mapping market_paused: field => bool;
+
+    // Operator role (singleton: true => operator address)
+    mapping operator: bool => address;
+
+    // Running fee estimate per market (for frontend display)
+    mapping estimated_fees: field => u64;
 
     // ========================================
     // HELPER FUNCTIONS
@@ -118,12 +143,23 @@ program prediction_market.aleo {
         Mapping::set(admin, true, admin_address);
     }
 
-    // Create a new prediction market
-    async transition create_market(public market_id: field) -> Future {
-        return finalize_create_market(market_id, self.caller);
+    // Create a new prediction market with metadata
+    async transition create_market(
+        public market_id: field,
+        public end_time: u32,
+        public yes_label_hash: field,
+        public no_label_hash: field
+    ) -> Future {
+        return finalize_create_market(market_id, self.caller, end_time, yes_label_hash, no_label_hash);
     }
 
-    async function finalize_create_market(market_id: field, caller: address) {
+    async function finalize_create_market(
+        market_id: field,
+        caller: address,
+        end_time: u32,
+        yes_label_hash: field,
+        no_label_hash: field
+    ) {
         // Verify caller is admin
         let admin_addr: address = Mapping::get(admin, true);
         assert_eq(caller, admin_addr);
@@ -132,11 +168,18 @@ program prediction_market.aleo {
         let existing_status: u8 = Mapping::get_or_use(market_status, market_id, 255u8);
         assert_eq(existing_status, 255u8); // 255 means doesn't exist
 
+        // Verify end_time is in the future
+        assert(end_time > block.height as u32);
+
         // Initialize market
         Mapping::set(market_status, market_id, STATUS_OPEN);
         Mapping::set(yes_pool, market_id, 0u64);
         Mapping::set(no_pool, market_id, 0u64);
         Mapping::set(bettor_count, market_id, 0u16);
+        Mapping::set(market_end_time, market_id, end_time);
+        Mapping::set(market_yes_label, market_id, yes_label_hash);
+        Mapping::set(market_no_label, market_id, no_label_hash);
+        Mapping::set(market_creator, market_id, caller);
     }
 
     // Close betting period
@@ -145,9 +188,11 @@ program prediction_market.aleo {
     }
 
     async function finalize_close_betting(market_id: field, caller: address) {
-        // Verify caller is admin
+        // Verify caller is admin or operator
         let admin_addr: address = Mapping::get(admin, true);
-        assert_eq(caller, admin_addr);
+        let operator_addr: address = Mapping::get_or_use(operator, true, admin_addr);
+        let is_authorized: bool = (caller == admin_addr) || (caller == operator_addr);
+        assert(is_authorized);
 
         // Verify market is open
         let status: u8 = Mapping::get(market_status, market_id);
@@ -181,6 +226,7 @@ program prediction_market.aleo {
         let total_pool: u64 = total_yes + total_no;
         let fee_amount: u64 = (total_pool * FEE_BPS) / 10000u64;
         Mapping::set(collected_fees, market_id, fee_amount);
+        Mapping::set(estimated_fees, market_id, fee_amount);
     }
 
     // Cancel a market (admin only) - allows users to claim refunds
@@ -202,12 +248,18 @@ program prediction_market.aleo {
         Mapping::set(market_status, market_id, STATUS_CANCELLED);
     }
 
-    // Withdraw collected fees (admin only)
-    async transition withdraw_fees(public market_id: field) -> Future {
-        return finalize_withdraw_fees(market_id, self.caller);
+    // Withdraw collected fees (admin only) with credit transfer
+    async transition withdraw_fees(public market_id: field, public claimed_fee_amount: u64) -> Future {
+        let transfer_future: Future = credits.aleo/transfer_public(self.caller, claimed_fee_amount);
+        return finalize_withdraw_fees(market_id, self.caller, claimed_fee_amount, transfer_future);
     }
 
-    async function finalize_withdraw_fees(market_id: field, caller: address) {
+    async function finalize_withdraw_fees(
+        market_id: field,
+        caller: address,
+        claimed_fee_amount: u64,
+        transfer: Future
+    ) {
         // Verify caller is admin
         let admin_addr: address = Mapping::get(admin, true);
         assert_eq(caller, admin_addr);
@@ -220,18 +272,76 @@ program prediction_market.aleo {
         let already_withdrawn: bool = Mapping::get_or_use(fees_withdrawn, market_id, false);
         assert(!already_withdrawn);
 
+        // Verify claimed amount matches collected fees
+        let fee_amount: u64 = Mapping::get(collected_fees, market_id);
+        assert_eq(claimed_fee_amount, fee_amount);
+
         // Mark fees as withdrawn
         Mapping::set(fees_withdrawn, market_id, true);
 
-        // Note: Actual credit transfer would need credits.aleo integration
-        // The fee amount is stored in collected_fees mapping
+        // Transfer credits to admin
+        transfer.await();
+    }
+
+    // Set operator address (admin only)
+    async transition set_operator(public operator_address: address) -> Future {
+        return finalize_set_operator(self.caller, operator_address);
+    }
+
+    async function finalize_set_operator(caller: address, operator_address: address) {
+        // Verify caller is admin
+        let admin_addr: address = Mapping::get(admin, true);
+        assert_eq(caller, admin_addr);
+
+        // Set operator
+        Mapping::set(operator, true, operator_address);
+    }
+
+    // Pause a market (admin or operator)
+    async transition pause_market(public market_id: field) -> Future {
+        return finalize_pause_market(market_id, self.caller);
+    }
+
+    async function finalize_pause_market(market_id: field, caller: address) {
+        // Verify caller is admin or operator
+        let admin_addr: address = Mapping::get(admin, true);
+        let operator_addr: address = Mapping::get_or_use(operator, true, admin_addr);
+        let is_authorized: bool = (caller == admin_addr) || (caller == operator_addr);
+        assert(is_authorized);
+
+        // Verify market exists and is open
+        let status: u8 = Mapping::get(market_status, market_id);
+        assert_eq(status, STATUS_OPEN);
+
+        // Pause the market
+        Mapping::set(market_paused, market_id, true);
+    }
+
+    // Unpause a market (admin or operator)
+    async transition unpause_market(public market_id: field) -> Future {
+        return finalize_unpause_market(market_id, self.caller);
+    }
+
+    async function finalize_unpause_market(market_id: field, caller: address) {
+        // Verify caller is admin or operator
+        let admin_addr: address = Mapping::get(admin, true);
+        let operator_addr: address = Mapping::get_or_use(operator, true, admin_addr);
+        let is_authorized: bool = (caller == admin_addr) || (caller == operator_addr);
+        assert(is_authorized);
+
+        // Verify market exists and is open
+        let status: u8 = Mapping::get(market_status, market_id);
+        assert_eq(status, STATUS_OPEN);
+
+        // Unpause the market
+        Mapping::set(market_paused, market_id, false);
     }
 
     // ========================================
     // USER FUNCTIONS
     // ========================================
 
-    // Place a bet on a market
+    // Place a bet on a market with credit transfer
     // outcome: true = YES, false = NO
     async transition place_bet(
         public market_id: field,
@@ -240,6 +350,12 @@ program prediction_market.aleo {
     ) -> (Bet, Future) {
         // Validate bet amount
         assert(amount >= MIN_BET);
+
+        // Transfer credits from bettor to program
+        let transfer_future: Future = credits.aleo/transfer_public_as_signer(
+            prediction_market_test001.aleo,
+            amount
+        );
 
         // Create private bet receipt
         // Use self.signer (not self.caller) since records must be owned by accounts, not programs
@@ -250,18 +366,27 @@ program prediction_market.aleo {
             amount: amount,
         };
 
-        return (bet, finalize_place_bet(market_id, self.signer, outcome, amount));
+        return (bet, finalize_place_bet(market_id, self.signer, outcome, amount, transfer_future));
     }
 
     async function finalize_place_bet(
         market_id: field,
         bettor: address,
         outcome: bool,
-        amount: u64
+        amount: u64,
+        transfer: Future
     ) {
         // Verify market is open
         let status: u8 = Mapping::get(market_status, market_id);
         assert_eq(status, STATUS_OPEN);
+
+        // Check pause status
+        let is_paused: bool = Mapping::get_or_use(market_paused, market_id, false);
+        assert(!is_paused);
+
+        // Check end time (if set, enforce betting deadline)
+        let end_time: u32 = Mapping::get_or_use(market_end_time, market_id, 4294967295u32);
+        assert(block.height as u32 < end_time);
 
         // Get user's composite key
         let user_key: field = get_user_key(market_id, bettor);
@@ -303,22 +428,34 @@ program prediction_market.aleo {
 
         Mapping::set(yes_pool, market_id, updated_yes);
         Mapping::set(no_pool, market_id, updated_no);
+
+        // Update estimated fees
+        let total_pool: u64 = updated_yes + updated_no;
+        let est_fee: u64 = (total_pool * FEE_BPS) / 10000u64;
+        Mapping::set(estimated_fees, market_id, est_fee);
+
+        // Await credit transfer
+        transfer.await();
     }
 
-    // Claim winnings after market resolution
+    // Claim winnings after market resolution with credit payout
     // User must calculate their payout off-chain and provide it
     // Contract validates the calculation
     async transition claim_winnings(
         bet: Bet,
         public claimed_amount: u64
     ) -> Future {
+        // Transfer credits from program to winner
+        let transfer_future: Future = credits.aleo/transfer_public(bet.owner, claimed_amount);
+
         // Consume the bet record (prevents double-claim)
         return finalize_claim_winnings(
             bet.market_id,
             bet.owner,
             bet.outcome,
             bet.amount,
-            claimed_amount
+            claimed_amount,
+            transfer_future
         );
     }
 
@@ -327,7 +464,8 @@ program prediction_market.aleo {
         bettor: address,
         bet_outcome: bool,
         bet_amount: u64,
-        claimed_amount: u64
+        claimed_amount: u64,
+        transfer: Future
     ) {
         // Verify market is resolved
         let status: u8 = Mapping::get(market_status, market_id);
@@ -372,25 +510,30 @@ program prediction_market.aleo {
         // Mark as claimed
         Mapping::set(claimed, user_key, true);
 
-        // Note: Actual credit transfer would need credits.aleo integration
-        // For MVP, we track claims and transfer manually or add transfer logic later
+        // Transfer credits to winner
+        transfer.await();
     }
 
-    // Claim refund for cancelled market
+    // Claim refund for cancelled market with credit transfer
     // Returns full bet amount (no fees deducted for cancelled markets)
     async transition claim_refund(bet: Bet) -> Future {
+        // Transfer credits from program to bettor (full refund)
+        let transfer_future: Future = credits.aleo/transfer_public(bet.owner, bet.amount);
+
         // Consume the bet record (prevents double-claim)
         return finalize_claim_refund(
             bet.market_id,
             bet.owner,
-            bet.amount
+            bet.amount,
+            transfer_future
         );
     }
 
     async function finalize_claim_refund(
         market_id: field,
         bettor: address,
-        bet_amount: u64
+        bet_amount: u64,
+        transfer: Future
     ) {
         // Verify market is cancelled
         let status: u8 = Mapping::get(market_status, market_id);
@@ -406,7 +549,7 @@ program prediction_market.aleo {
         // Mark as claimed
         Mapping::set(claimed, user_key, true);
 
-        // Refund amount equals bet amount (no fees for cancelled markets)
-        // Note: Actual credit transfer would need credits.aleo integration
+        // Transfer credits back to bettor
+        transfer.await();
     }
 }
