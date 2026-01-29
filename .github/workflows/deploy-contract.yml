@@ -11,17 +11,50 @@ on:
         options:
           - testnet
           - mainnet
-      fee:
-        description: 'Deployment fee (microcredits)'
+      priority_fee:
+        description: 'Priority fee (microcredits)'
         required: true
         default: '1900000'
-
-env:
-  LEO_VERSION: "2.0.0"
+      initialize:
+        description: 'Initialize contract after deploy (sets deployer as admin)'
+        required: true
+        default: true
+        type: boolean
 
 jobs:
+  build:
+    name: Build & Verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/
+            ~/.cargo/git/
+          key: ${{ runner.os }}-cargo-leo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-leo-
+
+      - name: Install Leo
+        run: |
+          if ! command -v leo &> /dev/null; then
+            cargo install leo-lang
+          fi
+          leo --version
+
+      - name: Build contract
+        run: leo build
+        working-directory: contracts/prediction_market
+
   deploy:
     name: Deploy to ${{ inputs.network }}
+    needs: build
     runs-on: ubuntu-latest
     environment: ${{ inputs.network }}
     steps:
@@ -30,37 +63,67 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Leo
+      - name: Cache Cargo
         uses: actions/cache@v4
         with:
-          path: ~/.leo
-          key: leo-${{ env.LEO_VERSION }}
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/
+            ~/.cargo/git/
+          key: ${{ runner.os }}-cargo-leo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-leo-
 
       - name: Install Leo
         run: |
           if ! command -v leo &> /dev/null; then
-            curl -L https://raw.githubusercontent.com/ProvableHQ/leo/main/install.sh | sh
+            cargo install leo-lang
           fi
-          echo "$HOME/.leo/bin" >> $GITHUB_PATH
+          leo --version
 
-      - name: Install snarkOS
+      - name: Read program name
+        id: program
         run: |
-          cargo install snarkos --git https://github.com/AleoNet/snarkOS.git --locked
-
-      - name: Build contract
-        run: leo build
+          PROGRAM_NAME=$(python3 -c "import json; print(json.load(open('program.json'))['program'])")
+          echo "name=$PROGRAM_NAME" >> "$GITHUB_OUTPUT"
+          echo "Program: $PROGRAM_NAME"
         working-directory: contracts/prediction_market
 
       - name: Deploy contract
-        run: |
-          snarkos developer deploy prediction_market.aleo \
-            --private-key ${{ secrets.DEPLOYER_PRIVATE_KEY }} \
-            --query "https://api.explorer.provable.com/v1" \
-            --broadcast "https://api.explorer.provable.com/v1/${{ inputs.network }}/transaction/broadcast" \
-            --priority-fee ${{ inputs.fee }}
         working-directory: contracts/prediction_market
+        env:
+          PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+        run: |
+          echo "Deploying ${{ steps.program.outputs.name }} to ${{ inputs.network }}..."
+          leo deploy \
+            --private-key "$PRIVATE_KEY" \
+            --network "${{ inputs.network }}" \
+            --endpoint "https://api.explorer.provable.com/v1" \
+            --broadcast \
+            --priority-fees "${{ inputs.priority_fee }}" \
+            --yes
+
+      - name: Initialize contract (set deployer as admin)
+        if: ${{ inputs.initialize }}
+        working-directory: contracts/prediction_market
+        env:
+          PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+        run: |
+          # Derive address from private key
+          ADMIN_ADDRESS=$(leo account import "$PRIVATE_KEY" 2>&1 | grep -oP 'aleo1\w+' | head -1)
+          echo "Initializing with admin: $ADMIN_ADDRESS"
+
+          leo execute initialize "$ADMIN_ADDRESS" \
+            --private-key "$PRIVATE_KEY" \
+            --network "${{ inputs.network }}" \
+            --endpoint "https://api.explorer.provable.com/v1" \
+            --broadcast \
+            --yes
 
       - name: Log deployment
         run: |
-          echo "Deployed prediction_market.aleo to ${{ inputs.network }}"
-          echo "Fee: ${{ inputs.fee }} microcredits"
+          echo "============================================"
+          echo "Deployed: ${{ steps.program.outputs.name }}"
+          echo "Network:  ${{ inputs.network }}"
+          echo "Fee:      ${{ inputs.priority_fee }} microcredits"
+          echo "Init:     ${{ inputs.initialize }}"
+          echo "============================================"

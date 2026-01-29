@@ -10,7 +10,6 @@ interface Market {
   status: "open" | "closed" | "resolved" | "cancelled";
   endDate: string;
   outcome?: boolean;
-  bettorCount?: number;
   paused?: boolean;
   endTime?: number;
 }
@@ -25,26 +24,42 @@ interface MarketCardProps {
   userPosition?: OnChainPosition | null;
 }
 
+const statusStyles = {
+  open: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+  closed: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+  resolved: "bg-slate-500/10 text-slate-400 border border-slate-500/20",
+  cancelled: "bg-rose-500/10 text-rose-400 border border-rose-500/20",
+} as const;
+
+const dotStyles = {
+  open: "bg-emerald-400",
+  closed: "bg-amber-400",
+  resolved: "bg-slate-400",
+  cancelled: "bg-rose-400",
+} as const;
+
 export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, onResolve, userPosition }: MarketCardProps) {
   const { connected } = useWallet();
   const totalPool = market.yesPool + market.noPool;
   const yesPercent = totalPool > 0 ? (market.yesPool / totalPool) * 100 : 50;
   const noPercent = 100 - yesPercent;
 
-  // Format pool values for display
   const yesPoolFormatted = formatPool(BigInt(market.yesPool));
   const noPoolFormatted = formatPool(BigInt(market.noPool));
   const totalPoolFormatted = formatPool(BigInt(totalPool));
 
+  const displayStatus = market.paused && market.status === "open" ? "PAUSED" : market.status.toUpperCase();
+  const statusKey = market.paused && market.status === "open" ? "closed" : market.status;
+
   return (
-    <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-gray-600 transition-colors">
+    <div className="glass-card rounded-2xl p-6">
       <div className="flex items-start justify-between mb-4">
-        <h3 className="text-lg font-semibold text-white flex-1">
+        <h3 className="font-heading text-lg font-semibold text-white flex-1">
           {market.question}
         </h3>
         <div className="flex items-center gap-2 ml-2">
-          {market.paused && (
-            <span className="text-xs px-2 py-1 rounded bg-yellow-900/50 text-yellow-400 border border-yellow-700 whitespace-nowrap">
+          {market.paused && market.status === "open" && (
+            <span className="text-xs px-2 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 whitespace-nowrap">
               PAUSED
             </span>
           )}
@@ -54,16 +69,16 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, on
       {/* Pool visualization */}
       <div className="mb-4">
         <div className="flex justify-between text-sm mb-2">
-          <span className="text-green-400">YES {yesPercent.toFixed(1)}%</span>
-          <span className="text-red-400">NO {noPercent.toFixed(1)}%</span>
+          <span className="text-emerald-400 font-medium">YES {yesPercent.toFixed(1)}%</span>
+          <span className="text-rose-400 font-medium">NO {noPercent.toFixed(1)}%</span>
         </div>
-        <div className="h-3 bg-gray-700 rounded-full overflow-hidden flex">
+        <div className="h-3 bg-navy-700 rounded-full overflow-hidden flex">
           <div
-            className="bg-green-500 transition-all"
+            className="pool-bar-yes transition-all"
             style={{ width: `${yesPercent}%` }}
           />
           <div
-            className="bg-red-500 transition-all"
+            className="pool-bar-no transition-all"
             style={{ width: `${noPercent}%` }}
           />
         </div>
@@ -78,10 +93,10 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, on
       {/* Resolved outcome */}
       {market.status === "resolved" && market.outcome !== undefined && (
         <div
-          className={`mb-4 p-2 rounded text-center font-bold ${
+          className={`mb-4 p-2.5 rounded-xl text-center font-bold text-sm ${
             market.outcome
-              ? "bg-green-900/50 text-green-400"
-              : "bg-red-900/50 text-red-400"
+              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+              : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
           }`}
         >
           Resolved: {market.outcome ? "YES" : "NO"} won
@@ -90,7 +105,7 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, on
 
       {/* Cancelled notice */}
       {market.status === "cancelled" && (
-        <div className="mb-4 p-2 rounded text-center font-bold bg-yellow-900/50 text-yellow-400">
+        <div className="mb-4 p-2.5 rounded-xl text-center font-bold text-sm bg-amber-500/10 text-amber-400 border border-amber-500/20">
           Market Cancelled
         </div>
       )}
@@ -99,27 +114,11 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, on
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
           <span
-            className={`text-sm px-2 py-1 rounded ${
-              market.status === "open"
-                ? market.paused
-                  ? "bg-yellow-900/50 text-yellow-400"
-                  : "bg-green-900/50 text-green-400"
-                : market.status === "closed"
-                  ? "bg-yellow-900/50 text-yellow-400"
-                  : market.status === "cancelled"
-                    ? "bg-red-900/50 text-red-400"
-                    : "bg-gray-700 text-gray-400"
-            }`}
+            className={`text-xs px-2.5 py-1 rounded-lg flex items-center gap-1.5 ${statusStyles[statusKey]}`}
           >
-            {market.paused && market.status === "open"
-              ? "PAUSED"
-              : market.status.toUpperCase()}
+            <span className={`w-1.5 h-1.5 rounded-full ${dotStyles[statusKey]}`} />
+            {displayStatus}
           </span>
-          {market.bettorCount !== undefined && market.bettorCount > 0 && (
-            <span className="text-xs text-gray-500">
-              {market.bettorCount} bettor{market.bettorCount !== 1 ? "s" : ""}
-            </span>
-          )}
         </div>
 
         <div className="flex gap-2">
@@ -127,14 +126,14 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, on
             <button
               onClick={onBet}
               disabled={!connected}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-white font-medium transition-colors"
+              className="btn-primary px-4 py-2 rounded-xl text-sm"
             >
               {connected ? "Place Bet" : "Connect Wallet"}
             </button>
           )}
 
           {market.status === "open" && market.paused && (
-            <span className="px-4 py-2 bg-gray-700 rounded-lg text-gray-400 font-medium">
+            <span className="px-4 py-2 bg-navy-700 rounded-xl text-gray-400 text-sm font-medium">
               Betting Paused
             </span>
           )}
@@ -142,31 +141,31 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, on
           {market.status === "closed" && (
             <button
               onClick={onResolve}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-medium transition-colors"
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-xl text-white text-sm font-medium transition-colors"
             >
               Resolve
             </button>
           )}
 
-          {market.status === "resolved" && userPosition && !userPosition.claimed && (
+          {market.status === "resolved" && userPosition && (
             <button
               onClick={onClaim}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white font-medium transition-colors"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-white text-sm font-medium transition-colors"
             >
               Claim Winnings
             </button>
           )}
 
-          {market.status === "resolved" && (!userPosition || userPosition.claimed) && (
-            <span className="px-4 py-2 bg-gray-700 rounded-lg text-gray-400 text-sm">
-              {userPosition?.claimed ? "Claimed" : "Resolved"}
+          {market.status === "resolved" && !userPosition && (
+            <span className="px-4 py-2 bg-navy-700 rounded-xl text-gray-400 text-sm">
+              Resolved
             </span>
           )}
 
-          {market.status === "cancelled" && userPosition && !userPosition.claimed && (
+          {market.status === "cancelled" && userPosition && (
             <button
               onClick={onRefund}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors"
+              className="btn-primary px-4 py-2 rounded-xl text-sm"
             >
               Claim Refund
             </button>
@@ -174,7 +173,8 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, on
         </div>
       </div>
 
-      <div className="flex justify-between items-center mt-3">
+      {/* Meta row */}
+      <div className="flex justify-between items-center mt-3 pt-3 border-t border-navy-600">
         <div className="flex items-center gap-2">
           <p className="text-xs text-gray-500">Ends: {market.endDate}</p>
           {market.endTime && (
@@ -188,12 +188,20 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, on
           {onViewHistory && (
             <button
               onClick={onViewHistory}
-              className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+              className="text-xs text-accent-light hover:text-accent transition-colors"
             >
               Details
             </button>
           )}
         </div>
+      </div>
+
+      {/* Privacy footer */}
+      <div className="mt-3 flex items-center gap-1.5 text-xs text-privacy/70">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+        Private bets on Aleo — your position is encrypted
       </div>
     </div>
   );

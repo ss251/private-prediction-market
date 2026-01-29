@@ -4,7 +4,7 @@
 import credits.aleo;
 import official_oracle_v2.aleo;
 
-program prediction_market_test003.aleo {
+program prediction_market_test004.aleo {
     // ========================================
     // CONSTANTS
     // ========================================
@@ -16,7 +16,6 @@ program prediction_market_test003.aleo {
     const STATUS_CANCELLED: u8 = 3u8;
 
     // Limits
-    const MAX_BETTORS: u16 = 100u16;
     const MIN_BET: u64 = 1000u64; // 0.001 credits minimum
 
     // Fee in basis points (2% = 200 bps)
@@ -50,21 +49,6 @@ program prediction_market_test003.aleo {
 
     // Admin address (singleton: true => admin)
     mapping admin: bool => address;
-
-    // Bettor tracking for iteration (per market)
-    mapping bettor_count: field => u16;
-
-    // Composite key: hash(market_id, index) => bettor address
-    mapping id_to_bettor: field => address;
-
-    // Composite key: hash(market_id, bettor) => bet amount on YES
-    mapping bettor_yes_amount: field => u64;
-
-    // Composite key: hash(market_id, bettor) => bet amount on NO
-    mapping bettor_no_amount: field => u64;
-
-    // Composite key: hash(market_id, bettor) => has claimed
-    mapping claimed: field => bool;
 
     // Collected fees per market (for admin withdrawal)
     mapping collected_fees: field => u64;
@@ -110,31 +94,6 @@ program prediction_market_test003.aleo {
 
     // Oracle: whether market uses oracle resolution (market_id => bool)
     mapping oracle_enabled: field => bool;
-
-    // ========================================
-    // HELPER FUNCTIONS
-    // ========================================
-
-    // Create composite key from market_id and index
-    inline get_bettor_key(market_id: field, index: u16) -> field {
-        return BHP256::hash_to_field(BettorKey { market_id, index });
-    }
-
-    // Create composite key from market_id and address
-    inline get_user_key(market_id: field, user: address) -> field {
-        return BHP256::hash_to_field(UserKey { market_id, user });
-    }
-
-    // Structs for hashing composite keys
-    struct BettorKey {
-        market_id: field,
-        index: u16,
-    }
-
-    struct UserKey {
-        market_id: field,
-        user: address,
-    }
 
     // ========================================
     // CONSTRUCTOR
@@ -192,7 +151,6 @@ program prediction_market_test003.aleo {
         Mapping::set(market_status, market_id, STATUS_OPEN);
         Mapping::set(yes_pool, market_id, 0u64);
         Mapping::set(no_pool, market_id, 0u64);
-        Mapping::set(bettor_count, market_id, 0u16);
         Mapping::set(market_end_time, market_id, end_time);
         Mapping::set(market_yes_label, market_id, yes_label_hash);
         Mapping::set(market_no_label, market_id, no_label_hash);
@@ -450,7 +408,7 @@ program prediction_market_test003.aleo {
 
         // Transfer credits from bettor to program
         let transfer_future: Future = credits.aleo/transfer_public_as_signer(
-            prediction_market_test003.aleo,
+            prediction_market_test004.aleo,
             amount
         );
 
@@ -463,12 +421,11 @@ program prediction_market_test003.aleo {
             amount: amount,
         };
 
-        return (bet, finalize_place_bet(market_id, self.signer, outcome, amount, transfer_future));
+        return (bet, finalize_place_bet(market_id, outcome, amount, transfer_future));
     }
 
     async function finalize_place_bet(
         market_id: field,
-        bettor: address,
         outcome: bool,
         amount: u64,
         transfer: Future
@@ -485,43 +442,71 @@ program prediction_market_test003.aleo {
         let end_time: u32 = Mapping::get_or_use(market_end_time, market_id, 4294967295u32);
         assert(block.height as u32 < end_time);
 
-        // Get user's composite key
-        let user_key: field = get_user_key(market_id, bettor);
-
-        // Check if this is a new bettor for this market
-        let existing_yes: u64 = Mapping::get_or_use(bettor_yes_amount, user_key, 0u64);
-        let existing_no: u64 = Mapping::get_or_use(bettor_no_amount, user_key, 0u64);
-        let is_new_bettor: bool = (existing_yes == 0u64) && (existing_no == 0u64);
-
-        // Track new bettor if needed
-        let current_count: u16 = Mapping::get_or_use(bettor_count, market_id, 0u16);
-
-        // Verify pool not full for new bettors
-        let pool_has_space: bool = current_count < MAX_BETTORS;
-        assert(is_new_bettor ? pool_has_space : true);
-
-        // Register new bettor
-        let new_count: u16 = is_new_bettor ? (current_count + 1u16) : current_count;
-        Mapping::set(bettor_count, market_id, new_count);
-
-        // Store bettor address at index (only for new bettors)
-        let bettor_key: field = get_bettor_key(market_id, current_count);
-        // Use ternary to conditionally set (always set, but value matters only for new)
-        let stored_bettor: address = is_new_bettor ? bettor : Mapping::get_or_use(id_to_bettor, bettor_key, bettor);
-        Mapping::set(id_to_bettor, bettor_key, stored_bettor);
-
-        // Update user's bet amount
-        let new_yes: u64 = outcome ? (existing_yes + amount) : existing_yes;
-        let new_no: u64 = outcome ? existing_no : (existing_no + amount);
-        Mapping::set(bettor_yes_amount, user_key, new_yes);
-        Mapping::set(bettor_no_amount, user_key, new_no);
-
         // Update pool totals
         let current_yes_pool: u64 = Mapping::get_or_use(yes_pool, market_id, 0u64);
         let current_no_pool: u64 = Mapping::get_or_use(no_pool, market_id, 0u64);
 
         let updated_yes: u64 = outcome ? (current_yes_pool + amount) : current_yes_pool;
         let updated_no: u64 = outcome ? current_no_pool : (current_no_pool + amount);
+
+        Mapping::set(yes_pool, market_id, updated_yes);
+        Mapping::set(no_pool, market_id, updated_no);
+
+        // Update estimated fees
+        let total_pool: u64 = updated_yes + updated_no;
+        let est_fee: u64 = (total_pool * FEE_BPS) / 10000u64;
+        Mapping::set(estimated_fees, market_id, est_fee);
+
+        // Await credit transfer
+        transfer.await();
+    }
+
+    // Add additional amount to an existing bet (consolidates into single record)
+    async transition add_to_bet(existing_bet: Bet, public additional_amount: u64) -> (Bet, Future) {
+        // Validate additional amount
+        assert(additional_amount >= MIN_BET);
+
+        // Transfer credits from bettor to program
+        let transfer_future: Future = credits.aleo/transfer_public_as_signer(
+            prediction_market_test004.aleo,
+            additional_amount
+        );
+
+        // Create new bet record with combined amount
+        let new_bet: Bet = Bet {
+            owner: existing_bet.owner,
+            market_id: existing_bet.market_id,
+            outcome: existing_bet.outcome,
+            amount: existing_bet.amount + additional_amount,
+        };
+
+        return (new_bet, finalize_add_to_bet(existing_bet.market_id, existing_bet.outcome, additional_amount, transfer_future));
+    }
+
+    async function finalize_add_to_bet(
+        market_id: field,
+        outcome: bool,
+        additional_amount: u64,
+        transfer: Future
+    ) {
+        // Verify market is open
+        let status: u8 = Mapping::get(market_status, market_id);
+        assert_eq(status, STATUS_OPEN);
+
+        // Check pause status
+        let is_paused: bool = Mapping::get_or_use(market_paused, market_id, false);
+        assert(!is_paused);
+
+        // Check end time
+        let end_time: u32 = Mapping::get_or_use(market_end_time, market_id, 4294967295u32);
+        assert(block.height as u32 < end_time);
+
+        // Update pool totals
+        let current_yes_pool: u64 = Mapping::get_or_use(yes_pool, market_id, 0u64);
+        let current_no_pool: u64 = Mapping::get_or_use(no_pool, market_id, 0u64);
+
+        let updated_yes: u64 = outcome ? (current_yes_pool + additional_amount) : current_yes_pool;
+        let updated_no: u64 = outcome ? current_no_pool : (current_no_pool + additional_amount);
 
         Mapping::set(yes_pool, market_id, updated_yes);
         Mapping::set(no_pool, market_id, updated_no);
@@ -548,7 +533,6 @@ program prediction_market_test003.aleo {
         // Consume the bet record (prevents double-claim)
         return finalize_claim_winnings(
             bet.market_id,
-            bet.owner,
             bet.outcome,
             bet.amount,
             claimed_amount,
@@ -558,7 +542,6 @@ program prediction_market_test003.aleo {
 
     async function finalize_claim_winnings(
         market_id: field,
-        bettor: address,
         bet_outcome: bool,
         bet_amount: u64,
         claimed_amount: u64,
@@ -573,13 +556,6 @@ program prediction_market_test003.aleo {
 
         // Check if user won
         let is_winner: bool = bet_outcome == winning_outcome;
-
-        // Get user key for claim tracking
-        let user_key: field = get_user_key(market_id, bettor);
-
-        // Verify not already claimed
-        let already_claimed: bool = Mapping::get_or_use(claimed, user_key, false);
-        assert(!already_claimed);
 
         // Calculate expected payout
         let total_yes: u64 = Mapping::get(yes_pool, market_id);
@@ -604,9 +580,6 @@ program prediction_market_test003.aleo {
         // Verify claimed amount matches calculated payout
         assert_eq(claimed_amount, actual_payout);
 
-        // Mark as claimed
-        Mapping::set(claimed, user_key, true);
-
         // Transfer credits to winner
         transfer.await();
     }
@@ -620,31 +593,17 @@ program prediction_market_test003.aleo {
         // Consume the bet record (prevents double-claim)
         return finalize_claim_refund(
             bet.market_id,
-            bet.owner,
-            bet.amount,
             transfer_future
         );
     }
 
     async function finalize_claim_refund(
         market_id: field,
-        bettor: address,
-        bet_amount: u64,
         transfer: Future
     ) {
         // Verify market is cancelled
         let status: u8 = Mapping::get(market_status, market_id);
         assert_eq(status, STATUS_CANCELLED);
-
-        // Get user key for claim tracking
-        let user_key: field = get_user_key(market_id, bettor);
-
-        // Verify not already claimed
-        let already_claimed: bool = Mapping::get_or_use(claimed, user_key, false);
-        assert(!already_claimed);
-
-        // Mark as claimed
-        Mapping::set(claimed, user_key, true);
 
         // Transfer credits back to bettor
         transfer.await();

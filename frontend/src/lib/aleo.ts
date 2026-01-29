@@ -1,7 +1,7 @@
 // Network client for querying Aleo chain state
 
 const API_URL = "https://api.explorer.provable.com/v1/testnet";
-export const PROGRAM_ID = "prediction_market_test003.aleo";
+export const PROGRAM_ID = "prediction_market_test004.aleo";
 
 // Market status constants (matches contract)
 export const MarketStatus = {
@@ -19,7 +19,6 @@ export interface MarketData {
   yesPool: bigint;
   noPool: bigint;
   outcome?: boolean;
-  bettorCount: number;
   endTime?: number;
   paused?: boolean;
   creator?: string;
@@ -99,7 +98,6 @@ export async function getMarketData(marketId: string): Promise<MarketData | null
       yesPoolRaw,
       noPoolRaw,
       outcomeRaw,
-      bettorCountRaw,
       endTimeRaw,
       pausedRaw,
       creatorRaw,
@@ -114,7 +112,6 @@ export async function getMarketData(marketId: string): Promise<MarketData | null
       getMappingValue("yes_pool", marketId),
       getMappingValue("no_pool", marketId),
       getMappingValue("market_outcome", marketId),
-      getMappingValue("bettor_count", marketId),
       getMappingValue("market_end_time", marketId),
       getMappingValue("market_paused", marketId),
       getMappingValue("market_creator", marketId),
@@ -137,7 +134,6 @@ export async function getMarketData(marketId: string): Promise<MarketData | null
       yesPool: parseAleoValue(yesPoolRaw),
       noPool: parseAleoValue(noPoolRaw),
       outcome: parseAleoBool(outcomeRaw),
-      bettorCount: Number(parseAleoValue(bettorCountRaw)),
       endTime: parseAleoU32(endTimeRaw),
       paused: parseAleoBool(pausedRaw) ?? false,
       creator: parseAleoAddress(creatorRaw),

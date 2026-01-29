@@ -1,51 +1,69 @@
-// On-chain position tracking per market for the connected wallet
+// Position tracking from wallet Bet records (private, not public mappings)
 import { useQuery } from "@tanstack/react-query";
 import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
-import { getMappingValue } from "../lib/aleo";
-import { getUserPosition, computeUserKey } from "../lib/marketIndex";
+import { PROGRAM_ID } from "../lib/aleo";
 
 export interface OnChainPosition {
   marketId: string;
   yesAmount: bigint;
   noAmount: bigint;
-  claimed: boolean;
 }
 
-async function fetchPositionForMarket(
-  marketId: string,
-  address: string
-): Promise<OnChainPosition | null> {
-  const position = await getUserPosition(marketId, address);
-  if (!position) return null;
+interface RawRecord {
+  owner?: string;
+  market_id?: string;
+  outcome?: string;
+  amount?: string;
+  _nonce?: string;
+}
 
-  // Check claimed status
-  const userKey = await computeUserKey(marketId, address);
-  const key = userKey.endsWith("field") ? userKey : `${userKey}field`;
-  const claimedRaw = await getMappingValue("claimed", key);
-  const claimed = claimedRaw === "true";
+function parseRecords(rawRecords: unknown[]): OnChainPosition[] {
+  const byMarket = new Map<string, { yes: bigint; no: bigint }>();
 
-  return {
+  for (const rec of rawRecords) {
+    try {
+      const data = rec as RawRecord;
+      if (!data.market_id || !data.amount) continue;
+
+      const marketId = String(data.market_id);
+      const outcome = String(data.outcome) === "true";
+      const amountStr = String(data.amount).replace(/u64$/, "");
+      const amount = BigInt(amountStr);
+
+      const existing = byMarket.get(marketId) ?? { yes: 0n, no: 0n };
+      if (outcome) {
+        existing.yes += amount;
+      } else {
+        existing.no += amount;
+      }
+      byMarket.set(marketId, existing);
+    } catch {
+      continue;
+    }
+  }
+
+  return Array.from(byMarket.entries()).map(([marketId, amounts]) => ({
     marketId,
-    yesAmount: position.yesAmount,
-    noAmount: position.noAmount,
-    claimed,
-  };
+    yesAmount: amounts.yes,
+    noAmount: amounts.no,
+  }));
 }
 
 export function useUserPositions(marketIds: string[]) {
-  const { publicKey } = useWallet();
+  const { publicKey, requestRecords } = useWallet();
 
   return useQuery({
     queryKey: ["userPositions", publicKey, marketIds],
     queryFn: async (): Promise<OnChainPosition[]> => {
-      if (!publicKey || marketIds.length === 0) return [];
+      if (!publicKey || !requestRecords || marketIds.length === 0) return [];
 
-      const results = await Promise.all(
-        marketIds.map((id) => fetchPositionForMarket(id, publicKey))
-      );
-      return results.filter((p): p is OnChainPosition => p !== null);
+      const rawRecords = await requestRecords(PROGRAM_ID);
+      const positions = parseRecords(rawRecords as unknown[]);
+
+      // Only return positions for requested markets
+      return positions.filter((p) => marketIds.includes(p.marketId));
     },
-    enabled: !!publicKey && marketIds.length > 0,
+    enabled: !!publicKey && !!requestRecords && marketIds.length > 0,
     refetchInterval: 30_000,
   });
 }

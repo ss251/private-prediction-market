@@ -33,7 +33,6 @@ interface DisplayMarket {
   status: "open" | "closed" | "resolved" | "cancelled";
   endDate: string;
   outcome?: boolean;
-  bettorCount: number;
   paused?: boolean;
   endTime?: number;
 }
@@ -59,7 +58,6 @@ function toDisplayMarket(
     status: statusMap[market.status],
     endDate: meta.endDate,
     outcome: market.outcome,
-    bettorCount: market.bettorCount,
     paused: market.paused,
     endTime: market.endTime,
   };
@@ -179,7 +177,7 @@ export function MarketList() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-bold text-white">Active Markets</h2>
+          <h2 className="font-heading text-2xl font-bold text-white">Active Markets</h2>
           {isLoading && (
             <span className="text-sm text-gray-400 animate-pulse">
               Loading...
@@ -193,7 +191,7 @@ export function MarketList() {
           {connected && (
             <button
               onClick={() => setActiveModal("create")}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-bold transition-colors"
+              className="btn-primary px-4 py-2 rounded-xl text-sm"
             >
               + Create Market
             </button>

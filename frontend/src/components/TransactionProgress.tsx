@@ -15,10 +15,8 @@ export function TransactionProgress({
   txId,
   error,
 }: TransactionProgressProps) {
-  // Don't show anything in idle state
   if (state === "idle") return null;
 
-  // Calculate progress percentage (cap at 95% until complete)
   const progressPercent =
     state === "confirmed"
       ? 100
@@ -31,22 +29,27 @@ export function TransactionProgress({
             : 50;
 
   return (
-    <div className="mt-4 p-4 bg-gray-700/50 rounded-lg">
+    <div className="mt-4 p-4 bg-navy-900/60 border border-navy-600 rounded-xl">
       {/* Status message */}
       <div className="flex items-center gap-2 mb-2">
         {state === "confirmed" ? (
-          <span className="text-green-400 text-lg">&#10003;</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
         ) : state === "failed" ? (
-          <span className="text-red-400 text-lg">&#10005;</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         ) : (
-          <span className="animate-spin text-blue-400">&#8987;</span>
+          <span className={`css-spinner-sm ${state === "proving" ? "proof-pulse" : ""}`} />
         )}
         <span
           className={`font-medium ${
             state === "confirmed"
-              ? "text-green-400"
+              ? "text-emerald-400"
               : state === "failed"
-                ? "text-red-400"
+                ? "text-rose-400"
                 : "text-white"
           }`}
         >
@@ -57,9 +60,9 @@ export function TransactionProgress({
       {/* Progress bar */}
       {state !== "confirmed" && state !== "failed" && (
         <div className="mb-2">
-          <div className="h-2 bg-gray-600 rounded-full overflow-hidden">
+          <div className="h-2 bg-navy-700 rounded-full overflow-hidden">
             <div
-              className="h-full bg-blue-500 transition-all duration-500"
+              className="h-full progress-gradient transition-all duration-500 rounded-full"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
@@ -92,7 +95,7 @@ export function TransactionProgress({
               href={`https://testnet.explorer.provable.com/transaction/${txId}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-mono text-blue-400 hover:text-blue-300"
+              className="font-mono text-accent-light hover:text-accent"
             >
               {txId.slice(0, 16)}...
             </a>
@@ -106,7 +109,7 @@ export function TransactionProgress({
 
       {/* Error message */}
       {error && (
-        <div className="mt-2 text-sm text-red-400 bg-red-900/30 p-2 rounded">
+        <div className="mt-2 text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2 rounded-lg">
           {error}
         </div>
       )}

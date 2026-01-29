@@ -6,7 +6,9 @@ import { DecryptPermission, WalletAdapterNetwork } from '@demox-labs/aleo-wallet
 import '@demox-labs/aleo-wallet-adapter-reactui/styles.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Header } from './components/Header';
+import { HeroSection } from './components/HeroSection';
 import { MarketList } from './components/MarketList';
+import { Footer } from './components/Footer';
 
 const queryClient = new QueryClient();
 
@@ -29,11 +31,13 @@ function App() {
         autoConnect
       >
         <WalletModalProvider>
-          <div className="min-h-screen bg-gray-900">
+          <div className="min-h-screen bg-navy-950 font-body text-white">
             <Header />
+            <HeroSection />
             <main className="container mx-auto px-4 py-8">
               <MarketList />
             </main>
+            <Footer />
           </div>
         </WalletModalProvider>
       </WalletProvider>

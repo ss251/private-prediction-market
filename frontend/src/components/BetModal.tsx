@@ -7,6 +7,7 @@ import {
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import { getPublicBalance, formatCredits, PROGRAM_ID } from "../lib/aleo";
+import { useBetRecords } from "../hooks/useBetRecords";
 
 interface Market {
   id: string;
@@ -30,8 +31,10 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
   const [balance, setBalance] = useState<bigint | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
+  const { fetchBetRecords } = useBetRecords();
+  const [existingRecord, setExistingRecord] = useState<string | null>(null);
+  const [, setCheckingRecords] = useState(false);
 
-  // Fetch balance when modal opens
   useEffect(() => {
     if (!isOpen || !publicKey) {
       setBalance(null);
@@ -44,6 +47,22 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
       .finally(() => setBalanceLoading(false));
   }, [isOpen, publicKey]);
 
+  useEffect(() => {
+    if (!isOpen || !publicKey) {
+      setExistingRecord(null);
+      return;
+    }
+    setCheckingRecords(true);
+    fetchBetRecords(market.id).then((records) => {
+      const match = records.find((r) => r.outcome === (outcome === "yes"));
+      setExistingRecord(match?.raw ?? null);
+    }).catch(() => {
+      setExistingRecord(null);
+    }).finally(() => {
+      setCheckingRecords(false);
+    });
+  }, [isOpen, publicKey, outcome, market.id]);
+
   if (!isOpen) return null;
 
   const amountMicrocredits = amount ? Math.floor(parseFloat(amount) * 1_000_000) : 0;
@@ -54,24 +73,24 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
     if (!publicKey || !requestTransaction) return;
 
     if (amountMicrocredits < 1000) {
-      return; // Minimum bet validation
+      return;
     }
 
     const resultTxId = await execute(
       async () => {
-        // Create the transaction using wallet adapter
+        const functionName = existingRecord ? "add_to_bet" : "place_bet";
+        const inputs = existingRecord
+          ? [existingRecord, `${amountMicrocredits}u64`]
+          : [market.id, outcome === "yes" ? "true" : "false", `${amountMicrocredits}u64`];
+
         const tx = Transaction.createTransaction(
           publicKey,
           WalletAdapterNetwork.TestnetBeta,
           PROGRAM_ID,
-          "place_bet",
-          [
-            market.id, // market_id: field
-            outcome === "yes" ? "true" : "false", // outcome: bool (private)
-            `${amountMicrocredits}u64`, // amount: u64
-          ],
-          500_000, // fee (gas) in microcredits - separate from bet amount
-          false // feePrivate: false = use public credits for fee
+          functionName,
+          inputs,
+          500_000,
+          false
         );
 
         const result = await requestTransaction(tx);
@@ -80,7 +99,6 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
       { statusFn: transactionStatus, getExecutionFn: getExecution }
     );
 
-    // Signal that a bet was placed (triggers position refetch)
     if (resultTxId && onBetPlaced) {
       onBetPlaced();
     }
@@ -94,33 +112,35 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
   const totalPool = market.yesPool + market.noPool;
   const selectedPool = outcome === "yes" ? market.yesPool : market.noPool;
 
-  // Calculate odds (potential return multiplier)
   const currentOdds =
     totalPool > 0 && selectedPool > 0
-      ? ((totalPool / selectedPool) * 0.98).toFixed(2) // 2% fee
+      ? ((totalPool / selectedPool) * 0.98).toFixed(2)
       : "2.00";
 
   const isExecuting = state !== "idle" && state !== "confirmed" && state !== "failed";
   const canSubmit = !isExecuting && amount && parseFloat(amount) >= 0.001 && !insufficientBalance && !market.paused;
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-xl max-w-md w-full p-6 border border-gray-700">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-navy-800 rounded-2xl max-w-md w-full p-6 border border-navy-600 shadow-2xl">
         <div className="flex justify-between items-start mb-4">
-          <h2 className="text-xl font-bold text-white">Place Your Bet</h2>
+          <h2 className="font-heading text-xl font-bold text-white">Place Your Bet</h2>
           <button
             onClick={handleClose}
             disabled={isExecuting}
-            className="text-gray-400 hover:text-white disabled:opacity-50"
+            className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
           >
-            &#10005;
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
 
         <p className="text-gray-300 mb-6">{market.question}</p>
 
         {market.paused && (
-          <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-700 rounded-lg text-yellow-400 text-sm">
+          <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 text-sm">
             This market is currently paused. Betting is temporarily disabled.
           </div>
         )}
@@ -132,26 +152,35 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
               type="button"
               onClick={() => setOutcome("yes")}
               disabled={isExecuting}
-              className={`p-4 rounded-lg border-2 transition-colors ${
+              className={`p-4 rounded-xl border-2 transition-colors ${
                 outcome === "yes"
-                  ? "border-green-500 bg-green-500/20 text-green-400"
-                  : "border-gray-600 text-gray-400 hover:border-gray-500"
+                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
+                  : "border-navy-600 text-gray-400 hover:border-navy-500"
               } disabled:opacity-50`}
             >
-              <div className="text-2xl mb-1">&#128077;</div>
+              <div className="mb-1">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
               <div className="font-bold">YES</div>
             </button>
             <button
               type="button"
               onClick={() => setOutcome("no")}
               disabled={isExecuting}
-              className={`p-4 rounded-lg border-2 transition-colors ${
+              className={`p-4 rounded-xl border-2 transition-colors ${
                 outcome === "no"
-                  ? "border-red-500 bg-red-500/20 text-red-400"
-                  : "border-gray-600 text-gray-400 hover:border-gray-500"
+                  ? "border-rose-500 bg-rose-500/10 text-rose-400"
+                  : "border-navy-600 text-gray-400 hover:border-navy-500"
               } disabled:opacity-50`}
             >
-              <div className="text-2xl mb-1">&#128078;</div>
+              <div className="mb-1">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </div>
               <div className="font-bold">NO</div>
             </button>
           </div>
@@ -169,10 +198,9 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
               step="0.001"
               min="0.001"
               disabled={isExecuting}
-              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none disabled:opacity-50"
+              className="w-full p-3 bg-navy-900 border border-navy-600 rounded-xl text-white placeholder-gray-500 focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none disabled:opacity-50"
               required
             />
-            {/* Balance display */}
             <div className="mt-2 flex justify-between items-center text-sm">
               <span className="text-gray-500">
                 {balanceLoading
@@ -185,7 +213,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
                 <button
                   type="button"
                   onClick={() => setAmount((Number(balance) / 1_000_000).toString())}
-                  className="text-blue-400 hover:text-blue-300 text-xs"
+                  className="text-accent-light hover:text-accent text-xs transition-colors"
                   disabled={isExecuting}
                 >
                   Max
@@ -193,21 +221,21 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
               )}
             </div>
             {insufficientBalance && (
-              <p className="mt-1 text-sm text-red-400">
+              <p className="mt-1 text-sm text-rose-400">
                 Insufficient balance for this bet
               </p>
             )}
           </div>
 
           {/* Odds display */}
-          <div className="bg-gray-700/50 rounded-lg p-3 mb-4">
+          <div className="bg-navy-900/60 border border-navy-600 rounded-xl p-3 mb-4">
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">Current Odds:</span>
               <span className="text-white font-mono">{currentOdds}x</span>
             </div>
             <div className="flex justify-between text-sm mt-1">
               <span className="text-gray-400">Potential Win:</span>
-              <span className="text-green-400 font-mono">
+              <span className="text-emerald-400 font-mono">
                 {amount
                   ? (parseFloat(amount) * parseFloat(currentOdds)).toFixed(4)
                   : "0.00"}{" "}
@@ -224,10 +252,12 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
 
           {/* Privacy notice */}
           <div className="text-xs text-gray-500 mb-4 flex items-start gap-2">
-            <span>&#128274;</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
             <span>
-              Your bet direction (YES/NO) is private. Only pool totals are
-              public.
+              Your bet is private — direction, amount, and identity are encrypted
+              as Aleo records. Only pool totals are public.
             </span>
           </div>
 
@@ -244,9 +274,9 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
             <button
               type="submit"
               disabled={!canSubmit}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-white font-bold transition-colors"
+              className="w-full py-3 btn-primary rounded-xl font-bold"
             >
-              Bet {outcome.toUpperCase()}
+              {existingRecord ? `Add to ${outcome.toUpperCase()} Position` : `Bet ${outcome.toUpperCase()}`}
             </button>
           )}
 
@@ -254,7 +284,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
             <button
               type="button"
               onClick={handleClose}
-              className="w-full py-3 bg-green-600 hover:bg-green-700 rounded-lg text-white font-bold transition-colors"
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-white font-bold transition-colors"
             >
               Done
             </button>
@@ -264,9 +294,9 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
             <button
               type="button"
               disabled
-              className="w-full py-3 bg-gray-600 rounded-lg text-white font-bold flex items-center justify-center gap-2"
+              className="w-full py-3 bg-navy-700 rounded-xl text-white font-bold flex items-center justify-center gap-2"
             >
-              <span className="animate-spin">&#8987;</span>
+              <span className="css-spinner-sm" />
               {stateMessages[state]}
             </button>
           )}
@@ -275,7 +305,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
             <button
               type="submit"
               disabled={!canSubmit}
-              className="w-full py-3 bg-red-600 hover:bg-red-700 rounded-lg text-white font-bold transition-colors"
+              className="w-full py-3 bg-rose-600 hover:bg-rose-700 rounded-xl text-white font-bold transition-colors"
             >
               Try Again
             </button>

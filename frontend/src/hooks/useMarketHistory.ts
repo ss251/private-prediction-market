@@ -1,9 +1,8 @@
 // Hook for market history using on-chain data
 
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getMarketData, type MarketData } from "../lib/aleo";
-import { getMarketBettors, type BettorEntry } from "../lib/marketIndex";
+import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
+import { getMarketData, PROGRAM_ID, type MarketData } from "../lib/aleo";
 
 export interface UserPosition {
   yesAmount: bigint;
@@ -11,11 +10,9 @@ export interface UserPosition {
 }
 
 export interface MarketHistoryData {
-  bettors: BettorEntry[];
   userPosition: UserPosition | null;
   marketData: MarketData | null;
   isLoading: boolean;
-  isBettorsLoading: boolean;
   error: Error | null;
 }
 
@@ -24,6 +21,8 @@ export function useMarketHistory(
   userAddress: string | null,
   enabled: boolean = true
 ): MarketHistoryData {
+  const { requestRecords } = useWallet();
+
   // Fetch current market state
   const {
     data: marketData,
@@ -37,33 +36,49 @@ export function useMarketHistory(
     staleTime: 30_000,
   });
 
-  // Fetch on-chain bettor ledger
+  // Derive user position from wallet records
   const {
-    data: bettors,
-    isLoading: isBettorsLoading,
-    error: bettorsError,
+    data: userPosition,
+    isLoading: isPositionLoading,
   } = useQuery({
-    queryKey: ["marketBettors", marketId],
-    queryFn: () => getMarketBettors(marketId),
-    enabled,
-    refetchInterval: 120_000,
-    staleTime: 60_000,
+    queryKey: ["marketHistoryPosition", marketId, userAddress],
+    queryFn: async (): Promise<UserPosition | null> => {
+      if (!userAddress || !requestRecords) return null;
+
+      try {
+        const rawRecords = await requestRecords(PROGRAM_ID);
+        let yesAmount = 0n;
+        let noAmount = 0n;
+
+        for (const rec of rawRecords as unknown[]) {
+          const data = rec as { market_id?: string; outcome?: string; amount?: string };
+          if (!data.market_id || !data.amount) continue;
+          if (String(data.market_id) !== marketId) continue;
+
+          const outcome = String(data.outcome) === "true";
+          const amount = BigInt(String(data.amount).replace(/u64$/, ""));
+
+          if (outcome) {
+            yesAmount += amount;
+          } else {
+            noAmount += amount;
+          }
+        }
+
+        if (yesAmount === 0n && noAmount === 0n) return null;
+        return { yesAmount, noAmount };
+      } catch {
+        return null;
+      }
+    },
+    enabled: enabled && !!userAddress && !!requestRecords,
+    refetchInterval: 30_000,
   });
 
-  // Derive user position from bettors array (no extra query needed)
-  const userPosition = useMemo(() => {
-    if (!userAddress || !bettors) return null;
-    const entry = bettors.find((b) => b.address === userAddress);
-    if (!entry) return null;
-    return { yesAmount: entry.yesAmount, noAmount: entry.noAmount };
-  }, [bettors, userAddress]);
-
   return {
-    bettors: bettors ?? [],
-    userPosition,
+    userPosition: userPosition ?? null,
     marketData: marketData ?? null,
-    isLoading: isMarketLoading,
-    isBettorsLoading,
-    error: (marketError ?? bettorsError) as Error | null,
+    isLoading: isMarketLoading || isPositionLoading,
+    error: marketError as Error | null,
   };
 }

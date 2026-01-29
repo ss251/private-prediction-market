@@ -22,8 +22,8 @@ interface CreateMarketModalProps {
 
 type Phase =
   | "loading"
-  | "needs-init"
-  | "initializing"
+  | "not-deployed"
+  | "not-admin"
   | "form"
   | "creating"
   | "success";
@@ -37,20 +37,17 @@ export function CreateMarketModal({
     useWallet();
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
 
-  // Form state
   const [question, setQuestion] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  // Derived state
   const [marketCount, setMarketCount] = useState<number | null>(null);
   const [estimatedBlock, setEstimatedBlock] = useState<number | null>(null);
   const [currentHeight, setCurrentHeight] = useState<number | null>(null);
   const [phase, setPhase] = useState<Phase>("loading");
   const [createdMarketId, setCreatedMarketId] = useState<string | null>(null);
 
-  // Check contract state on open
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !publicKey) return;
     setPhase("loading");
 
     Promise.all([
@@ -62,14 +59,15 @@ export function CreateMarketModal({
       setCurrentHeight(height);
 
       if (!admin) {
-        setPhase("needs-init");
+        setPhase("not-deployed");
+      } else if (admin !== publicKey) {
+        setPhase("not-admin");
       } else {
         setPhase("form");
       }
     });
-  }, [isOpen]);
+  }, [isOpen, publicKey]);
 
-  // Estimate block height when end date changes
   useEffect(() => {
     if (!endDate) {
       setEstimatedBlock(null);
@@ -108,36 +106,6 @@ export function CreateMarketModal({
     estimatedBlock !== null &&
     estimatedBlock > (currentHeight ?? 0);
 
-  // Initialize contract (sets connected wallet as admin)
-  const handleInitialize = async () => {
-    if (!publicKey || !requestTransaction) return;
-
-    setPhase("initializing");
-
-    const resultTxId = await execute(
-      async () => {
-        const tx = Transaction.createTransaction(
-          publicKey,
-          WalletAdapterNetwork.TestnetBeta,
-          PROGRAM_ID,
-          "initialize",
-          [publicKey],
-          1_000_000,
-          false
-        );
-
-        const result = await requestTransaction(tx);
-        return result;
-      },
-      { statusFn: transactionStatus, getExecutionFn: getExecution }
-    );
-
-    if (resultTxId) {
-      reset();
-      setPhase("form");
-    }
-  };
-
   const handleCreateMarket = async () => {
     if (!publicKey || !requestTransaction || !estimatedBlock) return;
 
@@ -146,8 +114,6 @@ export function CreateMarketModal({
     const nextId = (marketCount ?? 0) + 1;
     const marketId = `${nextId}field`;
 
-    // Use placeholder label hashes (BHP256 of "YES" and "NO")
-    // In production these would be computed via WebWorker
     const yesLabelHash = "1234field";
     const noLabelHash = "5678field";
 
@@ -198,136 +164,83 @@ export function CreateMarketModal({
     state !== "idle" && state !== "confirmed" && state !== "failed";
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-xl max-w-lg w-full p-6 border border-gray-700 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-navy-800 rounded-2xl max-w-lg w-full p-6 border border-navy-600 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-start mb-4">
-          <h2 className="text-xl font-bold text-white">Create Market</h2>
+          <h2 className="font-heading text-xl font-bold text-white">Create Market</h2>
           <button
             onClick={handleClose}
             disabled={isExecuting}
-            className="text-gray-400 hover:text-white disabled:opacity-50"
+            className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
           >
-            &#10005;
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
 
         {/* Loading */}
         {phase === "loading" && (
-          <div className="text-center text-gray-400 py-8 animate-pulse">
+          <div className="text-center text-gray-400 py-8 flex items-center justify-center gap-2">
+            <span className="css-spinner" />
             Checking contract state...
           </div>
         )}
 
-        {/* Needs Initialization */}
-        {phase === "needs-init" && (
+        {/* Contract Not Deployed / Not Initialized */}
+        {phase === "not-deployed" && (
           <div className="space-y-4">
-            <div className="p-4 bg-yellow-900/30 border border-yellow-700 rounded-lg">
-              <p className="text-yellow-400 font-semibold mb-2">
-                Contract Not Initialized
-              </p>
-              <p className="text-gray-300 text-sm">
-                The prediction market contract has not been initialized yet.
-                Click below to set your connected wallet as the admin. This is a
-                one-time on-chain transaction.
+            <div className="p-4 bg-navy-900/60 border border-navy-600 rounded-xl text-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <p className="text-gray-300 font-medium mb-1">Contract Not Ready</p>
+              <p className="text-gray-500 text-sm">
+                The prediction market contract has not been deployed or initialized yet.
+                Deploy the contract and run the <code className="text-gray-400 bg-navy-900 px-1 py-0.5 rounded">initialize</code> transition first.
               </p>
             </div>
-
-            <TransactionProgress
-              state={state}
-              elapsed={elapsed}
-              txId={txId}
-              error={error}
-            />
-
-            {state === "idle" && (
-              <button
-                type="button"
-                onClick={handleInitialize}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-bold transition-colors"
-              >
-                Initialize Contract
-              </button>
-            )}
-
-            {isExecuting && (
-              <button
-                type="button"
-                disabled
-                className="w-full py-3 bg-gray-600 rounded-lg text-white font-bold flex items-center justify-center gap-2"
-              >
-                <span className="animate-spin">&#8987;</span>
-                {stateMessages[state]}
-              </button>
-            )}
-
-            {state === "failed" && (
-              <button
-                type="button"
-                onClick={handleInitialize}
-                className="w-full py-3 bg-red-600 hover:bg-red-700 rounded-lg text-white font-bold transition-colors"
-              >
-                Try Again
-              </button>
-            )}
+            <button
+              onClick={handleClose}
+              className="w-full py-3 bg-navy-700 hover:bg-navy-600 rounded-xl text-white font-bold transition-colors"
+            >
+              Close
+            </button>
           </div>
         )}
 
-        {/* Initializing */}
-        {phase === "initializing" && (
+        {/* Not Admin */}
+        {phase === "not-admin" && (
           <div className="space-y-4">
-            <div className="text-sm text-gray-400">
-              Initializing contract...
+            <div className="p-4 bg-navy-900/60 border border-navy-600 rounded-xl text-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <p className="text-gray-300 font-medium mb-1">Admin Only</p>
+              <p className="text-gray-500 text-sm">
+                Market creation is restricted to the contract admin.
+              </p>
             </div>
-
-            <TransactionProgress
-              state={state}
-              elapsed={elapsed}
-              txId={txId}
-              error={error}
-            />
-
-            {isExecuting && (
-              <button
-                type="button"
-                disabled
-                className="w-full py-3 bg-gray-600 rounded-lg text-white font-bold flex items-center justify-center gap-2"
-              >
-                <span className="animate-spin">&#8987;</span>
-                {stateMessages[state]}
-              </button>
-            )}
-
-            {state === "confirmed" && (
-              <button
-                type="button"
-                onClick={() => {
-                  reset();
-                  setPhase("form");
-                }}
-                className="w-full py-3 bg-green-600 hover:bg-green-700 rounded-lg text-white font-bold transition-colors"
-              >
-                Continue to Create Market
-              </button>
-            )}
-
-            {state === "failed" && (
-              <button
-                type="button"
-                onClick={handleClose}
-                className="w-full py-3 bg-red-600 hover:bg-red-700 rounded-lg text-white font-bold transition-colors"
-              >
-                Close
-              </button>
-            )}
+            <button
+              onClick={handleClose}
+              className="w-full py-3 bg-navy-700 hover:bg-navy-600 rounded-xl text-white font-bold transition-colors"
+            >
+              Close
+            </button>
           </div>
         )}
 
         {/* Success Phase */}
         {phase === "success" && createdMarketId && (
           <div className="space-y-4">
-            <div className="p-4 bg-green-900/30 border border-green-700 rounded-lg text-center">
-              <div className="text-green-400 text-3xl mb-2">&#10003;</div>
-              <div className="text-green-400 font-bold text-lg">
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <div className="text-emerald-400 font-bold text-lg">
                 Market Created
               </div>
               <div className="text-gray-300 mt-2">
@@ -339,9 +252,9 @@ export function CreateMarketModal({
             <div>
               <p className="text-sm text-gray-400 mb-2">
                 Add this entry to{" "}
-                <code className="text-gray-300">public/markets.json</code>:
+                <code className="text-gray-300 bg-navy-900 px-1.5 py-0.5 rounded">public/markets.json</code>:
               </p>
-              <pre className="bg-gray-900 rounded-lg p-3 text-xs text-gray-300 overflow-x-auto">
+              <pre className="bg-navy-900 border border-navy-600 rounded-xl p-3 text-xs text-gray-300 overflow-x-auto font-mono">
                 {JSON.stringify(
                   {
                     [createdMarketId]: {
@@ -357,7 +270,7 @@ export function CreateMarketModal({
 
             <button
               onClick={handleClose}
-              className="w-full py-3 bg-green-600 hover:bg-green-700 rounded-lg text-white font-bold transition-colors"
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-white font-bold transition-colors"
             >
               Done
             </button>
@@ -381,7 +294,7 @@ export function CreateMarketModal({
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   placeholder="Will Bitcoin reach $150k by end of 2026?"
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                  className="w-full p-3 bg-navy-900 border border-navy-600 rounded-xl text-white placeholder-gray-500 focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none"
                 />
               </div>
 
@@ -394,7 +307,7 @@ export function CreateMarketModal({
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   min={minDate}
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+                  className="w-full p-3 bg-navy-900 border border-navy-600 rounded-xl text-white focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none"
                 />
                 {estimatedBlock !== null && daysUntil !== null && (
                   <p className="text-xs text-gray-500 mt-1">
@@ -407,7 +320,7 @@ export function CreateMarketModal({
 
             {/* Preview Panel */}
             {canSubmit && (
-              <div className="bg-gray-700/30 border border-gray-600 rounded-lg p-3 space-y-1 text-sm">
+              <div className="bg-navy-900/60 border border-navy-600 rounded-xl p-3 space-y-1 text-sm">
                 <div className="text-gray-400 uppercase text-xs font-semibold mb-2">
                   Preview
                 </div>
@@ -434,7 +347,7 @@ export function CreateMarketModal({
               type="button"
               onClick={handleCreateMarket}
               disabled={!canSubmit}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-white font-bold transition-colors"
+              className="w-full py-3 btn-primary rounded-xl font-bold"
             >
               Create Market
             </button>
@@ -459,9 +372,9 @@ export function CreateMarketModal({
               <button
                 type="button"
                 disabled
-                className="w-full py-3 bg-gray-600 rounded-lg text-white font-bold flex items-center justify-center gap-2"
+                className="w-full py-3 bg-navy-700 rounded-xl text-white font-bold flex items-center justify-center gap-2"
               >
-                <span className="animate-spin">&#8987;</span>
+                <span className="css-spinner-sm" />
                 {stateMessages[state]}
               </button>
             )}
@@ -470,7 +383,7 @@ export function CreateMarketModal({
               <button
                 type="button"
                 onClick={handleClose}
-                className="w-full py-3 bg-red-600 hover:bg-red-700 rounded-lg text-white font-bold transition-colors"
+                className="w-full py-3 bg-rose-600 hover:bg-rose-700 rounded-xl text-white font-bold transition-colors"
               >
                 Close
               </button>
