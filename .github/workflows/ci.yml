@@ -42,18 +42,22 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Leo
+      - name: Cache Cargo
         uses: actions/cache@v4
         with:
-          path: ~/.leo
-          key: leo-${{ env.LEO_VERSION }}
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/
+            ~/.cargo/git/
+          key: ${{ runner.os }}-cargo-leo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-leo-
 
       - name: Install Leo
         run: |
           if ! command -v leo &> /dev/null; then
-            curl -L https://raw.githubusercontent.com/ProvableHQ/leo/main/install.sh | sh
+            cargo install leo-lang
           fi
-          echo "$HOME/.leo/bin" >> $GITHUB_PATH
+          leo --version
 
       - name: Build contracts
         run: leo build
