@@ -6,27 +6,23 @@ import { BetModal } from "./BetModal";
 import { ClaimModal } from "./ClaimModal";
 import { RefundModal } from "./RefundModal";
 import { MarketHistory } from "./MarketHistory";
-import { getMarkets, type MarketData, MarketStatus } from "../lib/aleo";
-import { useBets } from "../hooks/useBets";
-
-// Known market IDs on testnet (in production, this would come from an indexer or event logs)
-// These are the markets that have been created on the deployed contract
-const KNOWN_MARKET_IDS = ["1field", "2field"];
-
-// Demo market metadata (questions, end dates - these would be stored off-chain in production)
-const MARKET_METADATA: Record<
-  string,
-  { question: string; endDate: string }
-> = {
-  "1field": {
-    question: "Will Bitcoin reach $150k by end of 2026?",
-    endDate: "2026-12-31",
-  },
-  "2field": {
-    question: "Will Aleo mainnet launch before March 2026?",
-    endDate: "2026-03-01",
-  },
-};
+import { ResolveModal } from "./OracleResolveModal";
+import { CreateMarketModal } from "./CreateMarketModal";
+import {
+  getAllMarketIds,
+  getMarkets,
+  type MarketData,
+  MarketStatus,
+} from "../lib/aleo";
+import {
+  fetchMarketRegistry,
+  getMarketLabel,
+  type MarketRegistry,
+} from "../lib/marketRegistry";
+import {
+  useUserPositions,
+  type OnChainPosition,
+} from "../hooks/useUserPositions";
 
 // Combine on-chain data with off-chain metadata
 interface DisplayMarket {
@@ -42,11 +38,11 @@ interface DisplayMarket {
   endTime?: number;
 }
 
-function toDisplayMarket(market: MarketData): DisplayMarket {
-  const metadata = MARKET_METADATA[market.id] || {
-    question: `Market ${market.id}`,
-    endDate: "TBD",
-  };
+function toDisplayMarket(
+  market: MarketData,
+  registry: MarketRegistry
+): DisplayMarket {
+  const meta = getMarketLabel(registry, market.id);
 
   const statusMap: Record<MarketStatus, DisplayMarket["status"]> = {
     [MarketStatus.OPEN]: "open",
@@ -57,11 +53,11 @@ function toDisplayMarket(market: MarketData): DisplayMarket {
 
   return {
     id: market.id,
-    question: metadata.question,
+    question: meta.question,
     yesPool: Number(market.yesPool),
     noPool: Number(market.noPool),
     status: statusMap[market.status],
-    endDate: metadata.endDate,
+    endDate: meta.endDate,
     outcome: market.outcome,
     bettorCount: market.bettorCount,
     paused: market.paused,
@@ -69,62 +65,62 @@ function toDisplayMarket(market: MarketData): DisplayMarket {
   };
 }
 
-// Fallback demo data when chain is unreachable
-const DEMO_MARKETS: DisplayMarket[] = [
-  {
-    id: "1field",
-    question: "Will Bitcoin reach $150k by end of 2026?",
-    yesPool: 5000000, // 5 credits in microcredits
-    noPool: 3000000,
-    status: "open",
-    endDate: "2026-12-31",
-    bettorCount: 0,
-  },
-  {
-    id: "2field",
-    question: "Will Aleo mainnet launch before March 2026?",
-    yesPool: 8000000,
-    noPool: 2000000,
-    status: "open",
-    endDate: "2026-03-01",
-    bettorCount: 0,
-  },
-];
-
-type ModalType = "bet" | "claim" | "refund" | "history";
+type ModalType = "bet" | "claim" | "refund" | "history" | "resolve" | "create";
 
 export function MarketList() {
   const { connected, publicKey } = useWallet();
-  const [selectedMarket, setSelectedMarket] = useState<DisplayMarket | null>(null);
+  const [selectedMarket, setSelectedMarket] = useState<DisplayMarket | null>(
+    null
+  );
   const [activeModal, setActiveModal] = useState<ModalType | null>(null);
-  const { addBet, getUnclaimedBets, markClaimed, getBetsForMarket } = useBets(publicKey ?? null);
 
   // Store raw chain data for claim calculations
   const [chainMarkets, setChainMarkets] = useState<MarketData[]>([]);
 
-  // Fetch markets from chain
+  // Discover market IDs from on-chain registry
+  const { data: marketIds = [] } = useQuery({
+    queryKey: ["marketIds"],
+    queryFn: getAllMarketIds,
+    refetchInterval: 60_000,
+  });
+
+  // Fetch market registry metadata
+  const { data: registry } = useQuery({
+    queryKey: ["marketRegistry"],
+    queryFn: fetchMarketRegistry,
+  });
+
+  // Fetch on-chain market data
   const {
     data: markets,
     isLoading,
     error,
     refetch,
   } = useQuery({
-    queryKey: ["markets", KNOWN_MARKET_IDS],
+    queryKey: ["markets", marketIds],
     queryFn: async () => {
-      const rawMarkets = await getMarkets(KNOWN_MARKET_IDS);
+      if (marketIds.length === 0) return [];
+      const rawMarkets = await getMarkets(marketIds);
       setChainMarkets(rawMarkets);
-      if (rawMarkets.length === 0) {
-        // Fall back to demo data if no markets found
-        console.log("No markets found on chain, using demo data");
-        return DEMO_MARKETS;
-      }
-      return rawMarkets.map(toDisplayMarket);
+      return rawMarkets.map((m) =>
+        toDisplayMarket(m, registry ?? { markets: {} })
+      );
     },
-    // Refetch every 30 seconds to get updated pool data
-    refetchInterval: 30000,
-    // Use demo data as fallback
-    placeholderData: DEMO_MARKETS,
+    enabled: marketIds.length > 0,
+    refetchInterval: 30_000,
   });
+
+  // Fetch user positions for all discovered markets
+  const {
+    data: positions = [],
+    refetch: refetchPositions,
+  } = useUserPositions(marketIds);
+
+  const getPositionForMarket = (
+    marketId: string
+  ): OnChainPosition | null => {
+    return positions.find((p) => p.marketId === marketId) ?? null;
+  };
 
   const handleBet = (market: DisplayMarket) => {
     setSelectedMarket(market);
@@ -146,34 +142,37 @@ export function MarketList() {
     setActiveModal("history");
   };
 
+  const handleResolve = (market: DisplayMarket) => {
+    setSelectedMarket(market);
+    setActiveModal("resolve");
+  };
+
   const handleModalClose = () => {
     setActiveModal(null);
-    // Refetch markets after any modal action to show updated pools
     refetch();
+    refetchPositions();
   };
 
-  const handleBetPlaced = (marketId: string, outcome: boolean, amount: number, txId: string) => {
-    addBet(marketId, outcome, amount, txId);
+  const handleBetPlaced = () => {
+    // Signal refetch of positions — no localStorage write
+    refetchPositions();
   };
 
-  const handleClaimed = (txId: string) => {
-    // Mark all unclaimed bets for this market as claimed
-    if (selectedMarket) {
-      const bets = getUnclaimedBets(selectedMarket.id);
-      bets.forEach((b) => markClaimed(b.txId));
-    }
+  const handleClaimed = () => {
+    refetchPositions();
   };
 
-  const handleRefunded = (txId: string) => {
-    if (selectedMarket) {
-      const bets = getUnclaimedBets(selectedMarket.id);
-      bets.forEach((b) => markClaimed(b.txId));
-    }
+  const handleRefunded = () => {
+    refetchPositions();
   };
 
   // Get chain data for claim modal
   const selectedChainMarket = selectedMarket
     ? chainMarkets.find((m) => m.id === selectedMarket.id)
+    : null;
+
+  const selectedPosition = selectedMarket
+    ? getPositionForMarket(selectedMarket.id)
     : null;
 
   return (
@@ -190,15 +189,26 @@ export function MarketList() {
             <span className="text-sm text-yellow-500">Using cached data</span>
           )}
         </div>
-        {!connected && (
-          <p className="text-gray-400 text-sm">Connect wallet to place bets</p>
-        )}
+        <div className="flex items-center gap-3">
+          {connected && (
+            <button
+              onClick={() => setActiveModal("create")}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-bold transition-colors"
+            >
+              + Create Market
+            </button>
+          )}
+          {!connected && (
+            <p className="text-gray-400 text-sm">
+              Connect wallet to place bets
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        {(markets || DEMO_MARKETS).map((market) => {
-          const userBets = getBetsForMarket(market.id);
-          const hasUnclaimedBets = getUnclaimedBets(market.id).length > 0;
+        {(markets ?? []).map((market) => {
+          const position = getPositionForMarket(market.id);
 
           return (
             <MarketCard
@@ -208,7 +218,8 @@ export function MarketList() {
               onClaim={() => handleClaim(market)}
               onRefund={() => handleRefund(market)}
               onViewHistory={() => handleViewHistory(market)}
-              userHasBets={hasUnclaimedBets}
+              onResolve={() => handleResolve(market)}
+              userPosition={position}
             />
           );
         })}
@@ -223,6 +234,17 @@ export function MarketList() {
         </div>
       )}
 
+      {/* Create Market Modal (admin only) */}
+      {activeModal === "create" && (
+        <CreateMarketModal
+          isOpen={true}
+          onClose={handleModalClose}
+          onCreated={() => {
+            refetch();
+          }}
+        />
+      )}
+
       {/* Bet Modal */}
       {selectedMarket && activeModal === "bet" && (
         <BetModal
@@ -234,31 +256,55 @@ export function MarketList() {
       )}
 
       {/* Claim Modal */}
-      {selectedMarket && activeModal === "claim" && selectedMarket.outcome !== undefined && (
-        <ClaimModal
-          marketId={selectedMarket.id}
-          question={selectedMarket.question}
-          yesPool={selectedChainMarket?.yesPool ?? BigInt(selectedMarket.yesPool)}
-          noPool={selectedChainMarket?.noPool ?? BigInt(selectedMarket.noPool)}
-          winningOutcome={selectedMarket.outcome}
-          bets={getUnclaimedBets(selectedMarket.id)}
-          isOpen={true}
-          onClose={handleModalClose}
-          onClaimed={handleClaimed}
-        />
-      )}
+      {selectedMarket &&
+        activeModal === "claim" &&
+        selectedMarket.outcome !== undefined && (
+          <ClaimModal
+            marketId={selectedMarket.id}
+            question={selectedMarket.question}
+            yesPool={
+              selectedChainMarket?.yesPool ?? BigInt(selectedMarket.yesPool)
+            }
+            noPool={
+              selectedChainMarket?.noPool ?? BigInt(selectedMarket.noPool)
+            }
+            winningOutcome={selectedMarket.outcome}
+            userPosition={selectedPosition}
+            isOpen={true}
+            onClose={handleModalClose}
+            onClaimed={handleClaimed}
+          />
+        )}
 
       {/* Refund Modal */}
       {selectedMarket && activeModal === "refund" && (
         <RefundModal
           marketId={selectedMarket.id}
           question={selectedMarket.question}
-          bets={getUnclaimedBets(selectedMarket.id)}
+          userPosition={selectedPosition}
           isOpen={true}
           onClose={handleModalClose}
           onRefunded={handleRefunded}
         />
       )}
+
+      {/* Resolve Modal */}
+      {selectedMarket &&
+        activeModal === "resolve" &&
+        selectedChainMarket && (
+          <ResolveModal
+            marketId={selectedMarket.id}
+            question={selectedMarket.question}
+            yesPool={selectedChainMarket.yesPool}
+            noPool={selectedChainMarket.noPool}
+            isOpen={true}
+            onClose={handleModalClose}
+            onResolved={() => {
+              refetch();
+              refetchPositions();
+            }}
+          />
+        )}
 
       {/* Market History Modal */}
       {selectedMarket && activeModal === "history" && (

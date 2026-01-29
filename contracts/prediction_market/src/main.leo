@@ -2,8 +2,9 @@
 // Parimutuel betting where bet positions are private, pool totals are public
 
 import credits.aleo;
+import official_oracle_v2.aleo;
 
-program prediction_market_test001.aleo {
+program prediction_market_test003.aleo {
     // ========================================
     // CONSTANTS
     // ========================================
@@ -94,6 +95,22 @@ program prediction_market_test001.aleo {
     // Running fee estimate per market (for frontend display)
     mapping estimated_fees: field => u64;
 
+    // Market registry: total number of markets created (singleton: true => count)
+    mapping market_count: bool => u64;
+
+    // Market registry: index => market_id (for enumeration)
+    mapping market_ids: u64 => field;
+
+    // Oracle: price threshold for market resolution (market_id => threshold as u128)
+    // Price is encoded as fixed-point with precision matching the oracle request
+    mapping price_threshold: field => u128;
+
+    // Oracle: request hash linking market to oracle data (market_id => request_hash)
+    mapping oracle_request_hash: field => u128;
+
+    // Oracle: whether market uses oracle resolution (market_id => bool)
+    mapping oracle_enabled: field => bool;
+
     // ========================================
     // HELPER FUNCTIONS
     // ========================================
@@ -180,6 +197,11 @@ program prediction_market_test001.aleo {
         Mapping::set(market_yes_label, market_id, yes_label_hash);
         Mapping::set(market_no_label, market_id, no_label_hash);
         Mapping::set(market_creator, market_id, caller);
+
+        // Register market in global index for enumeration
+        let current_count: u64 = Mapping::get_or_use(market_count, true, 0u64);
+        Mapping::set(market_ids, current_count, market_id);
+        Mapping::set(market_count, true, current_count + 1u64);
     }
 
     // Close betting period
@@ -221,6 +243,81 @@ program prediction_market_test001.aleo {
         Mapping::set(market_status, market_id, STATUS_RESOLVED);
 
         // Calculate and store fees for later withdrawal
+        let total_yes: u64 = Mapping::get(yes_pool, market_id);
+        let total_no: u64 = Mapping::get(no_pool, market_id);
+        let total_pool: u64 = total_yes + total_no;
+        let fee_amount: u64 = (total_pool * FEE_BPS) / 10000u64;
+        Mapping::set(collected_fees, market_id, fee_amount);
+        Mapping::set(estimated_fees, market_id, fee_amount);
+    }
+
+    // Configure oracle parameters for a market (admin only)
+    // Must be called before close_betting to set up oracle-based resolution
+    async transition set_market_oracle(
+        public market_id: field,
+        public threshold: u128,
+        public request_hash: u128
+    ) -> Future {
+        return finalize_set_market_oracle(market_id, self.caller, threshold, request_hash);
+    }
+
+    async function finalize_set_market_oracle(
+        market_id: field,
+        caller: address,
+        threshold: u128,
+        request_hash: u128
+    ) {
+        // Verify caller is admin
+        let admin_addr: address = Mapping::get(admin, true);
+        assert_eq(caller, admin_addr);
+
+        // Verify market exists and is open
+        let status: u8 = Mapping::get(market_status, market_id);
+        assert_eq(status, STATUS_OPEN);
+
+        // Store oracle config
+        Mapping::set(price_threshold, market_id, threshold);
+        Mapping::set(oracle_request_hash, market_id, request_hash);
+        Mapping::set(oracle_enabled, market_id, true);
+    }
+
+    // Resolve market using oracle attested data
+    // Anyone can call this once oracle data is available on-chain
+    async transition resolve_with_oracle(
+        public market_id: field
+    ) -> Future {
+        return finalize_resolve_with_oracle(market_id);
+    }
+
+    async function finalize_resolve_with_oracle(
+        market_id: field
+    ) {
+        // Verify market is closed (betting ended)
+        let status: u8 = Mapping::get(market_status, market_id);
+        assert_eq(status, STATUS_CLOSED);
+
+        // Verify oracle is enabled for this market
+        let is_oracle: bool = Mapping::get_or_use(oracle_enabled, market_id, false);
+        assert(is_oracle);
+
+        // Get the expected request hash and threshold
+        let request_hash: u128 = Mapping::get(oracle_request_hash, market_id);
+        let threshold: u128 = Mapping::get(price_threshold, market_id);
+
+        // Read attested data from the oracle program
+        let attested: official_oracle_v2.aleo/AttestedData = Mapping::get(
+            official_oracle_v2.aleo/sgx_attested_data,
+            request_hash
+        );
+
+        // Determine outcome: YES wins if attested price >= threshold
+        let yes_wins: bool = attested.data >= threshold;
+
+        // Set outcome and mark resolved
+        Mapping::set(market_outcome, market_id, yes_wins);
+        Mapping::set(market_status, market_id, STATUS_RESOLVED);
+
+        // Calculate and store fees
         let total_yes: u64 = Mapping::get(yes_pool, market_id);
         let total_no: u64 = Mapping::get(no_pool, market_id);
         let total_pool: u64 = total_yes + total_no;
@@ -353,7 +450,7 @@ program prediction_market_test001.aleo {
 
         // Transfer credits from bettor to program
         let transfer_future: Future = credits.aleo/transfer_public_as_signer(
-            prediction_market_test001.aleo,
+            prediction_market_test003.aleo,
             amount
         );
 

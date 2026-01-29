@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
 import {
   Transaction,
@@ -5,8 +6,9 @@ import {
 } from "@demox-labs/aleo-wallet-adapter-base";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
-import { calculatePayout, formatCredits } from "../lib/aleo";
-import type { StoredBet } from "../hooks/useBets";
+import { calculatePayout, formatCredits, PROGRAM_ID } from "../lib/aleo";
+import { useBetRecords } from "../hooks/useBetRecords";
+import type { OnChainPosition } from "../hooks/useUserPositions";
 
 interface ClaimModalProps {
   marketId: string;
@@ -14,13 +16,11 @@ interface ClaimModalProps {
   yesPool: bigint;
   noPool: bigint;
   winningOutcome: boolean;
-  bets: StoredBet[];
+  userPosition: OnChainPosition | null;
   isOpen: boolean;
   onClose: () => void;
-  onClaimed?: (txId: string) => void;
+  onClaimed?: () => void;
 }
-
-const PROGRAM_ID = "prediction_market_test001.aleo";
 
 export function ClaimModal({
   marketId,
@@ -28,43 +28,73 @@ export function ClaimModal({
   yesPool,
   noPool,
   winningOutcome,
-  bets,
+  userPosition,
   isOpen,
   onClose,
   onClaimed,
 }: ClaimModalProps) {
-  const { publicKey, requestTransaction, transactionStatus, getExecution } = useWallet();
+  const { publicKey, requestTransaction, transactionStatus, getExecution } =
+    useWallet();
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
+  const { fetchBetRecords, loading: recordsLoading } = useBetRecords();
+  const [recordError, setRecordError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  // Calculate payouts for each bet
-  const betPayouts = bets.map((bet) => {
-    const payout = calculatePayout(
-      BigInt(bet.amount),
-      yesPool,
-      noPool,
-      bet.outcome,
-      winningOutcome
+  // Already claimed check
+  if (userPosition?.claimed) {
+    return (
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+        <div className="bg-gray-800 rounded-xl max-w-md w-full p-6 border border-gray-700">
+          <div className="flex justify-between items-start mb-4">
+            <h2 className="text-xl font-bold text-white">Claim Winnings</h2>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-white"
+            >
+              &#10005;
+            </button>
+          </div>
+          <p className="text-gray-300 mb-4">{question}</p>
+          <div className="bg-gray-700/50 rounded-lg p-4 text-center text-gray-400 mb-4">
+            You have already claimed your winnings for this market.
+          </div>
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-gray-600 hover:bg-gray-700 rounded-lg text-white font-bold transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
     );
-    return {
-      ...bet,
-      payout,
-      isWinner: bet.outcome === winningOutcome,
-    };
-  });
+  }
 
-  const totalPayout = betPayouts.reduce((sum, b) => sum + b.payout, 0n);
-  const hasWinningBets = betPayouts.some((b) => b.isWinner);
+  // Calculate payout from aggregated on-chain position
+  const yesAmount = userPosition?.yesAmount ?? 0n;
+  const noAmount = userPosition?.noAmount ?? 0n;
+  const winningAmount = winningOutcome ? yesAmount : noAmount;
+  const hasWinningPosition = winningAmount > 0n;
+
+  const totalPayout = hasWinningPosition
+    ? calculatePayout(winningAmount, yesPool, noPool, winningOutcome, winningOutcome)
+    : 0n;
 
   const handleClaim = async () => {
-    if (!publicKey || !requestTransaction || !hasWinningBets) return;
+    if (!publicKey || !requestTransaction || !hasWinningPosition) return;
 
-    // For each winning bet, submit a claim transaction
-    // In practice, the wallet would need the actual Bet record
-    // For MVP, we submit with the calculated payout amount
-    const winningBet = betPayouts.find((b) => b.isWinner);
-    if (!winningBet) return;
+    setRecordError(null);
+
+    // Fetch Bet records from wallet
+    const records = await fetchBetRecords(marketId);
+    const winningRecord = records.find((r) => r.outcome === winningOutcome);
+
+    if (!winningRecord) {
+      setRecordError(
+        "No matching Bet record found in wallet. Ensure your wallet has the decrypted records from your bet transactions."
+      );
+      return;
+    }
 
     const resultTxId = await execute(
       async () => {
@@ -74,11 +104,11 @@ export function ClaimModal({
           PROGRAM_ID,
           "claim_winnings",
           [
-            // The Bet record would be passed from the wallet's decrypted records
-            // For now, we pass the payout amount for validation
-            `${winningBet.payout}u64`, // claimed_amount: u64
+            // Pass the Bet record + calculated payout
+            winningRecord.raw,
+            `${totalPayout}u64`,
           ],
-          500_000 // fee for claim tx
+          500_000
         );
 
         const result = await requestTransaction(tx);
@@ -88,7 +118,7 @@ export function ClaimModal({
     );
 
     if (resultTxId && onClaimed) {
-      onClaimed(resultTxId);
+      onClaimed();
     }
   };
 
@@ -97,7 +127,8 @@ export function ClaimModal({
     onClose();
   };
 
-  const isExecuting = state !== "idle" && state !== "confirmed" && state !== "failed";
+  const isExecuting =
+    state !== "idle" && state !== "confirmed" && state !== "failed";
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
@@ -126,40 +157,62 @@ export function ClaimModal({
           Result: {winningOutcome ? "YES" : "NO"} won
         </div>
 
-        {/* Your bets summary */}
+        {/* Aggregated position summary */}
         <div className="mb-4 space-y-2">
-          <h3 className="text-sm font-medium text-gray-400">Your Bets</h3>
-          {betPayouts.map((bet, i) => (
+          <h3 className="text-sm font-medium text-gray-400">Your Position</h3>
+          {yesAmount > 0n && (
             <div
-              key={bet.txId}
               className={`p-3 rounded-lg border ${
-                bet.isWinner
+                winningOutcome
                   ? "border-green-700 bg-green-900/20"
                   : "border-red-700 bg-red-900/20"
               }`}
             >
               <div className="flex justify-between text-sm">
-                <span className={bet.isWinner ? "text-green-400" : "text-red-400"}>
-                  {bet.outcome ? "YES" : "NO"} - {bet.isWinner ? "Winner" : "Lost"}
+                <span
+                  className={
+                    winningOutcome ? "text-green-400" : "text-red-400"
+                  }
+                >
+                  YES - {winningOutcome ? "Winner" : "Lost"}
                 </span>
                 <span className="text-gray-300">
-                  {formatCredits(BigInt(bet.amount))} credits
+                  {formatCredits(yesAmount)} credits
                 </span>
               </div>
-              {bet.isWinner && (
-                <div className="flex justify-between text-sm mt-1">
-                  <span className="text-gray-400">Payout:</span>
-                  <span className="text-green-400 font-mono">
-                    {formatCredits(bet.payout)} credits
-                  </span>
-                </div>
-              )}
             </div>
-          ))}
+          )}
+          {noAmount > 0n && (
+            <div
+              className={`p-3 rounded-lg border ${
+                !winningOutcome
+                  ? "border-green-700 bg-green-900/20"
+                  : "border-red-700 bg-red-900/20"
+              }`}
+            >
+              <div className="flex justify-between text-sm">
+                <span
+                  className={
+                    !winningOutcome ? "text-green-400" : "text-red-400"
+                  }
+                >
+                  NO - {!winningOutcome ? "Winner" : "Lost"}
+                </span>
+                <span className="text-gray-300">
+                  {formatCredits(noAmount)} credits
+                </span>
+              </div>
+            </div>
+          )}
+          {!userPosition && (
+            <div className="p-3 rounded-lg border border-gray-600 bg-gray-700/30 text-gray-400 text-center">
+              No position found for this market.
+            </div>
+          )}
         </div>
 
         {/* Total payout */}
-        {hasWinningBets && (
+        {hasWinningPosition && (
           <div className="bg-gray-700/50 rounded-lg p-3 mb-4">
             <div className="flex justify-between">
               <span className="text-gray-400 font-medium">Total Payout:</span>
@@ -170,9 +223,16 @@ export function ClaimModal({
           </div>
         )}
 
-        {!hasWinningBets && (
+        {!hasWinningPosition && userPosition && (
           <div className="bg-gray-700/50 rounded-lg p-3 mb-4 text-center text-gray-400">
-            No winning bets to claim.
+            No winning position to claim.
+          </div>
+        )}
+
+        {/* Record error */}
+        {recordError && (
+          <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-400 text-sm">
+            {recordError}
           </div>
         )}
 
@@ -194,16 +254,19 @@ export function ClaimModal({
         />
 
         {/* Action buttons */}
-        {state === "idle" && hasWinningBets && (
+        {state === "idle" && hasWinningPosition && (
           <button
             onClick={handleClaim}
-            className="w-full py-3 bg-green-600 hover:bg-green-700 rounded-lg text-white font-bold transition-colors"
+            disabled={recordsLoading}
+            className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded-lg text-white font-bold transition-colors"
           >
-            Claim {formatCredits(totalPayout)} Credits
+            {recordsLoading
+              ? "Fetching records..."
+              : `Claim ${formatCredits(totalPayout)} Credits`}
           </button>
         )}
 
-        {state === "idle" && !hasWinningBets && (
+        {state === "idle" && !hasWinningPosition && (
           <button
             onClick={handleClose}
             className="w-full py-3 bg-gray-600 hover:bg-gray-700 rounded-lg text-white font-bold transition-colors"
@@ -233,7 +296,7 @@ export function ClaimModal({
           </button>
         )}
 
-        {state === "failed" && hasWinningBets && (
+        {state === "failed" && hasWinningPosition && (
           <button
             onClick={handleClaim}
             className="w-full py-3 bg-red-600 hover:bg-red-700 rounded-lg text-white font-bold transition-colors"

@@ -1,5 +1,6 @@
 import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
 import { formatPool } from "../lib/aleo";
+import type { OnChainPosition } from "../hooks/useUserPositions";
 
 interface Market {
   id: string;
@@ -20,10 +21,11 @@ interface MarketCardProps {
   onClaim?: () => void;
   onRefund?: () => void;
   onViewHistory?: () => void;
-  userHasBets?: boolean;
+  onResolve?: () => void;
+  userPosition?: OnChainPosition | null;
 }
 
-export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, userHasBets }: MarketCardProps) {
+export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, onResolve, userPosition }: MarketCardProps) {
   const { connected } = useWallet();
   const totalPool = market.yesPool + market.noPool;
   const yesPercent = totalPool > 0 ? (market.yesPool / totalPool) * 100 : 50;
@@ -40,11 +42,13 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, us
         <h3 className="text-lg font-semibold text-white flex-1">
           {market.question}
         </h3>
-        {market.paused && (
-          <span className="ml-2 text-xs px-2 py-1 rounded bg-yellow-900/50 text-yellow-400 border border-yellow-700 whitespace-nowrap">
-            PAUSED
-          </span>
-        )}
+        <div className="flex items-center gap-2 ml-2">
+          {market.paused && (
+            <span className="text-xs px-2 py-1 rounded bg-yellow-900/50 text-yellow-400 border border-yellow-700 whitespace-nowrap">
+              PAUSED
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Pool visualization */}
@@ -135,7 +139,16 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, us
             </span>
           )}
 
-          {market.status === "resolved" && userHasBets && (
+          {market.status === "closed" && (
+            <button
+              onClick={onResolve}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-medium transition-colors"
+            >
+              Resolve
+            </button>
+          )}
+
+          {market.status === "resolved" && userPosition && !userPosition.claimed && (
             <button
               onClick={onClaim}
               className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white font-medium transition-colors"
@@ -144,13 +157,13 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onViewHistory, us
             </button>
           )}
 
-          {market.status === "resolved" && !userHasBets && (
+          {market.status === "resolved" && (!userPosition || userPosition.claimed) && (
             <span className="px-4 py-2 bg-gray-700 rounded-lg text-gray-400 text-sm">
-              Resolved
+              {userPosition?.claimed ? "Claimed" : "Resolved"}
             </span>
           )}
 
-          {market.status === "cancelled" && userHasBets && (
+          {market.status === "cancelled" && userPosition && !userPosition.claimed && (
             <button
               onClick={onRefund}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors"

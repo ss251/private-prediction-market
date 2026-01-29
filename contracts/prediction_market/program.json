@@ -1,5 +1,5 @@
 {
-  "program": "prediction_market_test001.aleo",
+  "program": "prediction_market_test003.aleo",
   "version": "0.1.0",
   "description": "Private prediction market with parimutuel betting",
   "license": "MIT",
@@ -7,6 +7,11 @@
   "dependencies": [
     {
       "name": "credits.aleo",
+      "location": "network",
+      "network": "testnetbeta"
+    },
+    {
+      "name": "official_oracle_v2.aleo",
       "location": "network",
       "network": "testnetbeta"
     }

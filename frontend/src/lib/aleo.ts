@@ -1,7 +1,7 @@
 // Network client for querying Aleo chain state
 
 const API_URL = "https://api.explorer.provable.com/v1/testnet";
-const PROGRAM_ID = "prediction_market_test001.aleo";
+export const PROGRAM_ID = "prediction_market_test003.aleo";
 
 // Market status constants (matches contract)
 export const MarketStatus = {
@@ -26,6 +26,9 @@ export interface MarketData {
   yesLabelHash?: string;
   noLabelHash?: string;
   estimatedFees?: bigint;
+  oracleEnabled?: boolean;
+  priceThreshold?: bigint;
+  oracleRequestHash?: bigint;
 }
 
 // Parse Aleo value (e.g., "1000u64" -> 1000n)
@@ -103,6 +106,9 @@ export async function getMarketData(marketId: string): Promise<MarketData | null
       yesLabelRaw,
       noLabelRaw,
       estimatedFeesRaw,
+      oracleEnabledRaw,
+      priceThresholdRaw,
+      oracleRequestHashRaw,
     ] = await Promise.all([
       getMappingValue("market_status", marketId),
       getMappingValue("yes_pool", marketId),
@@ -115,6 +121,9 @@ export async function getMarketData(marketId: string): Promise<MarketData | null
       getMappingValue("market_yes_label", marketId),
       getMappingValue("market_no_label", marketId),
       getMappingValue("estimated_fees", marketId),
+      getMappingValue("oracle_enabled", marketId),
+      getMappingValue("price_threshold", marketId),
+      getMappingValue("oracle_request_hash", marketId),
     ]);
 
     const status = parseAleoU8(statusRaw);
@@ -135,6 +144,9 @@ export async function getMarketData(marketId: string): Promise<MarketData | null
       yesLabelHash: parseAleoField(yesLabelRaw),
       noLabelHash: parseAleoField(noLabelRaw),
       estimatedFees: parseAleoValue(estimatedFeesRaw),
+      oracleEnabled: parseAleoBool(oracleEnabledRaw) ?? false,
+      priceThreshold: oracleEnabledRaw ? parseAleoValue(priceThresholdRaw) : undefined,
+      oracleRequestHash: oracleEnabledRaw ? parseAleoValue(oracleRequestHashRaw) : undefined,
     };
   } catch (error) {
     console.error(`Failed to fetch market ${marketId}:`, error);
@@ -146,6 +158,34 @@ export async function getMarketData(marketId: string): Promise<MarketData | null
 export async function getMarkets(marketIds: string[]): Promise<MarketData[]> {
   const results = await Promise.all(marketIds.map(getMarketData));
   return results.filter((m): m is MarketData => m !== null);
+}
+
+// Discover all market IDs from on-chain registry
+export async function getAllMarketIds(): Promise<string[]> {
+  const countRaw = await getMappingValue("market_count", "true");
+  if (!countRaw || countRaw === "null") return [];
+  const count = Number(parseAleoValue(countRaw));
+  if (count === 0) return [];
+
+  const BATCH_SIZE = 10;
+  const ids: string[] = [];
+
+  for (let batchStart = 0; batchStart < count; batchStart += BATCH_SIZE) {
+    const batchEnd = Math.min(batchStart + BATCH_SIZE, count);
+    const batchPromises: Promise<string | null>[] = [];
+    for (let i = batchStart; i < batchEnd; i++) {
+      batchPromises.push(getMappingValue("market_ids", `${i}u64`));
+    }
+    const results = await Promise.all(batchPromises);
+    for (const raw of results) {
+      if (raw && raw !== "null") {
+        // Value comes back as e.g. "1field" — keep as-is
+        ids.push(raw);
+      }
+    }
+  }
+
+  return ids;
 }
 
 // Get market metadata (convenience wrapper for new fields)
@@ -241,6 +281,33 @@ export async function getLatestHeight(): Promise<number> {
   }
 }
 
+// Oracle constants
+export const ORACLE_PROGRAM_ID = "official_oracle_v2.aleo";
+
+// Check if oracle data is available on-chain for a given request hash
+export async function getOracleAttestedData(
+  requestHash: bigint
+): Promise<{ data: bigint; timestamp: bigint } | null> {
+  try {
+    const response = await fetch(
+      `${API_URL}/program/${ORACLE_PROGRAM_ID}/mapping/sgx_attested_data/${requestHash}u128`
+    );
+    if (!response.ok) return null;
+    const raw = await response.text();
+    const cleaned = raw.replace(/^"|"$/g, "");
+    // Parse struct: { data: 12345u128, attestation_timestamp: 67890u128 }
+    const dataMatch = cleaned.match(/data:\s*(\d+)u128/);
+    const tsMatch = cleaned.match(/attestation_timestamp:\s*(\d+)u128/);
+    if (!dataMatch || !tsMatch) return null;
+    return {
+      data: BigInt(dataMatch[1]),
+      timestamp: BigInt(tsMatch[1]),
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Calculate payout for a winning bet
 export function calculatePayout(
   betAmount: bigint,
@@ -279,4 +346,45 @@ export function formatPool(microcredits: bigint): string {
     return `${(credits / 1000).toFixed(1)}k`;
   }
   return credits.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+// Check if the deployed contract supports oracle mappings
+export async function contractSupportsOracle(): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `${API_URL}/program/${PROGRAM_ID}`
+    );
+    if (!response.ok) return false;
+    const source = await response.text();
+    return source.includes("oracle_enabled") && source.includes("set_market_oracle");
+  } catch {
+    return false;
+  }
+}
+
+// Get admin address from the on-chain admin mapping (singleton: true => address)
+export async function getAdminAddress(): Promise<string | null> {
+  const raw = await getMappingValue("admin", "true");
+  if (!raw || raw === "null") return null;
+  return parseAleoAddress(raw) ?? null;
+}
+
+// Get the current market count from on-chain registry
+export async function getMarketCount(): Promise<number> {
+  const raw = await getMappingValue("market_count", "true");
+  if (!raw || raw === "null") return 0;
+  return Number(parseAleoValue(raw));
+}
+
+// Estimate a future block height for a target date.
+// Aleo produces ~1 block per 5 seconds (12 blocks/min).
+const ALEO_BLOCK_TIME_SECONDS = 5;
+
+export async function estimateBlockHeight(targetDate: Date): Promise<number> {
+  const currentHeight = await getLatestHeight();
+  const now = Date.now();
+  const targetMs = targetDate.getTime();
+  const diffSeconds = Math.max(0, (targetMs - now) / 1000);
+  const blocksAhead = Math.ceil(diffSeconds / ALEO_BLOCK_TIME_SECONDS);
+  return currentHeight + blocksAhead;
 }
