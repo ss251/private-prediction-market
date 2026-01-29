@@ -263,7 +263,7 @@ program prediction_market_test004.aleo {
         let threshold: u128 = Mapping::get(price_threshold, market_id);
 
         // Read attested data from the oracle program
-        let attested: official_oracle_v2.aleo/AttestedData = Mapping::get(
+        let attested: AttestedData = Mapping::get(
             official_oracle_v2.aleo/sgx_attested_data,
             request_hash
         );
