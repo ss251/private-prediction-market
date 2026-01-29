@@ -21,6 +21,9 @@ on:
         default: true
         type: boolean
 
+env:
+  LEO_VERSION: "3.4.0"
+
 jobs:
   build:
     name: Build & Verify
@@ -28,24 +31,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/
-            ~/.cargo/git/
-          key: ${{ runner.os }}-cargo-leo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-leo-
-
       - name: Install Leo
         run: |
-          if ! command -v leo &> /dev/null; then
-            cargo install leo-lang
-          fi
+          curl -sSL "https://github.com/ProvableHQ/leo/releases/download/v${LEO_VERSION}/leo-v${LEO_VERSION}-x86_64-unknown-linux-gnu.zip" -o leo.zip
+          unzip -o leo.zip -d leo-bin
+          sudo mv leo-bin/leo /usr/local/bin/leo
+          chmod +x /usr/local/bin/leo
           leo --version
 
       - name: Build contract
@@ -60,24 +51,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/
-            ~/.cargo/git/
-          key: ${{ runner.os }}-cargo-leo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-leo-
-
       - name: Install Leo
         run: |
-          if ! command -v leo &> /dev/null; then
-            cargo install leo-lang
-          fi
+          curl -sSL "https://github.com/ProvableHQ/leo/releases/download/v${LEO_VERSION}/leo-v${LEO_VERSION}-x86_64-unknown-linux-gnu.zip" -o leo.zip
+          unzip -o leo.zip -d leo-bin
+          sudo mv leo-bin/leo /usr/local/bin/leo
+          chmod +x /usr/local/bin/leo
           leo --version
 
       - name: Read program name
