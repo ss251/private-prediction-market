@@ -77,7 +77,7 @@ The frontend generates ZK proofs client-side via `@provablehq/sdk` WASM workers.
 | Market end time, creator address | Public | On-chain mappings |
 | Bet direction (YES or NO) | **Private** | Aleo record (owner only) |
 | Bettor identity | **Private** | Aleo record (owner only) |
-| Individual bet amount | **Private** | Aleo record (owner only) |
+| Individual bet amount | **Public** | On-chain (transition input) |
 | Payout amount per user | **Private until claim** | Revealed at claim time |
 
 Pool totals are public because parimutuel payout calculation requires them. When a user places a bet, the aggregate pool for one side increases, but the chain does not record which address caused the increase. The `Bet` record is stored encrypted on-chain; only the record owner can decrypt it.
