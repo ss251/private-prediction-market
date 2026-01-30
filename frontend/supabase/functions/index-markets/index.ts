@@ -131,7 +131,7 @@ Deno.serve(async (_req: Request) => {
 
   try {
     // 1. Get indexer cursor
-    const { data: cursor } = await supabase
+    const { data: _cursor } = await supabase
       .from("indexer_state")
       .select("*")
       .eq("id", true)

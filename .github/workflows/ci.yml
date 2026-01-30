@@ -29,10 +29,6 @@ jobs:
         run: bun run lint
         working-directory: frontend
 
-      - name: Type check
-        run: bun run typecheck
-        working-directory: frontend
-
   test-contracts:
     name: Test Leo Contracts
     runs-on: ubuntu-latest

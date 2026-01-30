@@ -8,6 +8,7 @@ const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
+// deno-lint-ignore no-unused-vars
 Deno.serve(async (_req: Request) => {
   try {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();

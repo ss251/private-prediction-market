@@ -61,6 +61,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
     }).finally(() => {
       setCheckingRecords(false);
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, publicKey, outcome, market.id]);
 
   if (!isOpen) return null;

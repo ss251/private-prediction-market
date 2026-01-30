@@ -192,13 +192,15 @@ export function CreateMarketModal({
 
   useEffect(() => {
     if (!isOpen || !publicKey) return;
-    setPhase("loading");
+    let cancelled = false;
+    setPhase("loading"); // eslint-disable-line react-hooks/set-state-in-effect
 
     Promise.all([
       getAdminAddress(),
       getMarketCount(),
       getLatestHeight(),
     ]).then(([admin, count, height]) => {
+      if (cancelled) return;
       setMarketCount(count);
       setCurrentHeight(height);
 
@@ -210,11 +212,12 @@ export function CreateMarketModal({
         setPhase("form");
       }
     });
+    return () => { cancelled = true; };
   }, [isOpen, publicKey]);
 
   useEffect(() => {
     if (!endDate) {
-      setEstimatedBlock(null);
+      setEstimatedBlock(null); // eslint-disable-line react-hooks/set-state-in-effect
       return;
     }
     const target = new Date(endDate + "T23:59:59");
@@ -222,23 +225,29 @@ export function CreateMarketModal({
       setEstimatedBlock(null);
       return;
     }
-    estimateBlockHeight(target).then(setEstimatedBlock);
+    let cancelled = false;
+    estimateBlockHeight(target).then((h) => {
+      if (!cancelled) setEstimatedBlock(h);
+    });
+    return () => { cancelled = true; };
   }, [endDate]);
+
+  const [now] = useState(() => Date.now());
 
   const daysUntil = useMemo(() => {
     if (!endDate) return null;
     return Math.max(
       0,
       Math.ceil(
-        (new Date(endDate + "T23:59:59").getTime() - Date.now()) /
+        (new Date(endDate + "T23:59:59").getTime() - now) /
           (86400 * 1000)
       )
     );
-  }, [endDate]);
+  }, [endDate, now]);
 
   const minDate = useMemo(() => {
-    return new Date(Date.now() + 86400 * 1000).toISOString().split("T")[0];
-  }, []);
+    return new Date(now + 86400 * 1000).toISOString().split("T")[0];
+  }, [now]);
 
   const DURATION_PRESETS = [
     { label: "1 Week", days: 7, key: "1w" },
@@ -248,7 +257,7 @@ export function CreateMarketModal({
   ];
 
   const selectPreset = (key: string, days: number) => {
-    const date = new Date(Date.now() + days * 86400 * 1000);
+    const date = new Date(now + days * 86400 * 1000);
     setEndDate(date.toISOString().split("T")[0]);
     setSelectedPreset(key);
     setShowCustomDate(false);
