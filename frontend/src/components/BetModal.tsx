@@ -22,11 +22,12 @@ interface BetModalProps {
   isOpen: boolean;
   onClose: () => void;
   onBetPlaced?: () => void;
+  initialOutcome?: "yes" | "no";
 }
 
-export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps) {
+export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome }: BetModalProps) {
   const { publicKey, requestTransaction, transactionStatus } = useWallet();
-  const [outcome, setOutcome] = useState<"yes" | "no">("yes");
+  const [outcome, setOutcome] = useState<"yes" | "no">(initialOutcome ?? "yes");
   const [amount, setAmount] = useState("");
   const [balance, setBalance] = useState<bigint | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
@@ -282,13 +283,19 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
           )}
 
           {state === "confirmed" && (
-            <button
-              type="button"
-              onClick={handleClose}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-white font-bold transition-colors"
-            >
-              Done
-            </button>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-white font-bold transition-colors"
+              >
+                Done
+              </button>
+              <p className="text-xs text-gray-500 text-center flex items-center justify-center gap-1.5">
+                <span className="css-spinner-sm" />
+                Pool data will update in a few moments
+              </p>
+            </div>
           )}
 
           {isExecuting && (

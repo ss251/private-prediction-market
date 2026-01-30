@@ -17,7 +17,7 @@ interface Market {
 
 interface MarketCardProps {
   market: Market;
-  onBet: () => void;
+  onBet: (outcome: "yes" | "no") => void;
   onClaim?: () => void;
   onRefund?: () => void;
   onResolve?: () => void;
@@ -93,7 +93,7 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPo
       {isOpen && connected && (
         <div className="grid grid-cols-2 gap-2 mb-3">
           <button
-            onClick={onBet}
+            onClick={() => onBet("yes")}
             className="flex items-center justify-between px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15 hover:border-emerald-500/40 transition-colors group"
           >
             <span className="text-emerald-400 text-sm font-bold">Yes</span>
@@ -102,7 +102,7 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPo
             </span>
           </button>
           <button
-            onClick={onBet}
+            onClick={() => onBet("no")}
             className="flex items-center justify-between px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15 hover:border-rose-500/40 transition-colors group"
           >
             <span className="text-rose-400 text-sm font-bold">No</span>

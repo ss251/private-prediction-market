@@ -46,6 +46,7 @@ export function MarketDetailPage() {
   const { marketId } = useParams<{ marketId: string }>();
   const { connected } = useWallet();
   const [activeModal, setActiveModal] = useState<ModalType | null>(null);
+  const [selectedOutcome, setSelectedOutcome] = useState<"yes" | "no">("yes");
   const pageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -274,7 +275,7 @@ export function MarketDetailPage() {
               <h3 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 sm:mb-4">Place a Bet</h3>
               <div className="space-y-3">
                 <button
-                  onClick={() => setActiveModal("bet")}
+                  onClick={() => { setSelectedOutcome("yes"); setActiveModal("bet"); }}
                   className="w-full flex items-center justify-between px-4 py-3 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15 hover:border-emerald-500/40 transition-colors group"
                 >
                   <span className="text-emerald-400 font-bold">Yes</span>
@@ -283,7 +284,7 @@ export function MarketDetailPage() {
                   </span>
                 </button>
                 <button
-                  onClick={() => setActiveModal("bet")}
+                  onClick={() => { setSelectedOutcome("no"); setActiveModal("bet"); }}
                   className="w-full flex items-center justify-between px-4 py-3 rounded-md bg-rose-500/10 border-2 border-rose-500/15 hover:border-rose-500/40 transition-colors group"
                 >
                   <span className="text-rose-400 font-bold">No</span>
@@ -409,6 +410,7 @@ export function MarketDetailPage() {
           isOpen={true}
           onClose={handleModalClose}
           onBetPlaced={() => refetchPositions()}
+          initialOutcome={selectedOutcome}
         />
       )}
 

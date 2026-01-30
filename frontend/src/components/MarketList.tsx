@@ -27,6 +27,7 @@ export function MarketList() {
     null
   );
   const [activeModal, setActiveModal] = useState<ModalType | null>(null);
+  const [selectedOutcome, setSelectedOutcome] = useState<"yes" | "no">("yes");
 
   // Store raw chain data for claim calculations
   const [chainMarkets, setChainMarkets] = useState<MarketData[]>([]);
@@ -71,8 +72,9 @@ export function MarketList() {
     return positions.find((p) => p.marketId === marketId) ?? null;
   };
 
-  const handleBet = (market: DisplayMarket) => {
+  const handleBet = (market: DisplayMarket, outcome: "yes" | "no") => {
     setSelectedMarket(market);
+    setSelectedOutcome(outcome);
     setActiveModal("bet");
   };
 
@@ -182,7 +184,7 @@ export function MarketList() {
             <div key={market.id} className="market-card-item">
             <MarketCard
               market={market}
-              onBet={() => handleBet(market)}
+              onBet={(outcome) => handleBet(market, outcome)}
               onClaim={() => handleClaim(market)}
               onRefund={() => handleRefund(market)}
               onResolve={() => handleResolve(market)}
@@ -220,6 +222,7 @@ export function MarketList() {
           isOpen={true}
           onClose={handleModalClose}
           onBetPlaced={handleBetPlaced}
+          initialOutcome={selectedOutcome}
         />
       )}
 
