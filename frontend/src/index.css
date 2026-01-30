@@ -1,0 +1,223 @@
+@import "tailwindcss";
+
+/* ── Design System Tokens ── */
+/* Lasagna: super-dark base with warm accent highlights */
+@theme {
+  /* Super-dark backgrounds — near black with faint warm undertone */
+  --color-navy-950: #08080a;
+  --color-navy-900: #0e0e12;
+  --color-navy-800: #141418;
+  --color-navy-700: #1c1c22;
+  --color-navy-600: #26262e;
+  --color-navy-500: #3a3a44;
+
+  /* Accent — warm cream / off-white */
+  --color-accent: #FFD27F;
+  --color-accent-light: #FFF0D4;
+
+  /* Privacy → deep warm gold (matches accent family) */
+  --color-privacy: #D4A054;
+
+  /* Bold industrial display + clean body */
+  --font-heading: "Archivo Black", "Impact", sans-serif;
+  --font-body: "DM Sans", "PT Root UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* ── Base ── */
+body {
+  background-color: var(--color-navy-950);
+  color: white;
+  font-family: var(--font-body);
+}
+
+/* ── Glass Card — squared, solid borders ── */
+.glass-card {
+  background: var(--color-navy-800);
+  border: 2px solid var(--color-navy-600);
+  border-radius: 8px;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.15s;
+}
+.glass-card:hover {
+  background: var(--color-navy-700);
+  border-color: var(--color-navy-500);
+  transform: translateY(-2px);
+}
+
+/* ── Primary Button — bold, squared, dark text on cream ── */
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--color-navy-950);
+  font-weight: 700;
+  border-radius: 8px;
+  border: 2px solid var(--color-navy-950);
+  box-shadow: 4px 4px 0 0 var(--color-navy-600);
+  transition: box-shadow 0.12s, transform 0.12s;
+}
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 2px 2px 0 0 var(--color-navy-600);
+  transform: translate(2px, 2px);
+}
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--color-navy-600);
+  color: var(--color-navy-500);
+  box-shadow: none;
+}
+
+/* ── Pool Bars ── */
+.pool-bar-yes {
+  background: #10b981;
+  border-radius: 2px;
+}
+.pool-bar-no {
+  background: #f43f5e;
+  border-radius: 2px;
+}
+
+/* ── Hero Grid — force columns to not exceed container ── */
+@media (min-width: 768px) {
+  .hero-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* ── Hero Gradient — subtle glow on super-dark ── */
+.hero-gradient {
+  background: radial-gradient(
+      ellipse 80% 60% at 20% 40%,
+      rgba(255, 210, 127, 0.04) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 60% 50% at 80% 30%,
+      rgba(196, 75, 40, 0.03) 0%,
+      transparent 70%
+    );
+}
+
+/* ── Privacy Glow ── */
+.privacy-glow {
+  box-shadow: 0 0 8px rgba(212, 160, 84, 0.3);
+}
+
+/* ── Proof Pulse ── */
+@keyframes proof-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.proof-pulse {
+  animation: proof-pulse 1.5s ease-in-out infinite;
+}
+
+/* ── CSS Spinner ── */
+@keyframes spinner {
+  to { transform: rotate(360deg); }
+}
+.css-spinner {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 3px solid var(--color-navy-500);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spinner 0.7s linear infinite;
+  display: inline-block;
+}
+.css-spinner-sm {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--color-navy-500);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spinner 0.7s linear infinite;
+  display: inline-block;
+}
+
+/* ── Gradient Progress Bar ── */
+.progress-gradient {
+  background: linear-gradient(90deg, var(--color-accent), var(--color-privacy));
+}
+
+/* ── Wallet Adapter Overrides ── */
+
+/* Header connect/disconnect button */
+.wallet-adapter-button {
+  background: var(--color-accent) !important;
+  color: var(--color-navy-950) !important;
+  font-family: var(--font-body) !important;
+  border-radius: 8px !important;
+  font-weight: 700 !important;
+  border: 2px solid var(--color-navy-950) !important;
+  box-shadow: 3px 3px 0 0 var(--color-navy-600) !important;
+  transition: box-shadow 0.12s, transform 0.12s !important;
+  font-size: 14px !important;
+  padding: 0 12px !important;
+  height: 40px !important;
+}
+.wallet-adapter-button:hover {
+  box-shadow: 1px 1px 0 0 var(--color-navy-600) !important;
+  transform: translate(2px, 2px) !important;
+}
+
+/* Only constrain the trigger button in the header, not modal list buttons */
+.wallet-adapter-button-trigger {
+  max-width: 180px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+@media (max-width: 480px) {
+  .wallet-adapter-button-trigger {
+    max-width: 140px !important;
+    font-size: 12px !important;
+    padding: 0 10px !important;
+    height: 36px !important;
+  }
+}
+
+/* Modal wrapper */
+.wallet-adapter-modal-wrapper {
+  background-color: var(--color-navy-800) !important;
+  border: 2px solid var(--color-navy-600) !important;
+  border-radius: 8px !important;
+}
+.wallet-adapter-modal-button-close {
+  background-color: var(--color-navy-700) !important;
+}
+
+/* Modal list: wallet items need full width, no truncation */
+.wallet-adapter-modal-list .wallet-adapter-button {
+  width: 100% !important;
+  max-width: none !important;
+  overflow: visible !important;
+  white-space: normal !important;
+  text-overflow: unset !important;
+  font-weight: 400 !important;
+  font-size: 18px !important;
+  height: auto !important;
+  padding: 10px 16px !important;
+  box-shadow: none !important;
+  border: none !important;
+  background: transparent !important;
+  color: white !important;
+  display: flex !important;
+  align-items: center !important;
+}
+.wallet-adapter-modal-list .wallet-adapter-button:hover {
+  box-shadow: none !important;
+  transform: none !important;
+}
+.wallet-adapter-modal-list .wallet-adapter-button span {
+  margin-left: auto !important;
+  font-size: 14px !important;
+  opacity: 0.6 !important;
+}
+.wallet-adapter-modal-list li {
+  background-color: var(--color-navy-700) !important;
+  border-radius: 6px !important;
+  margin-bottom: 4px !important;
+}
+.wallet-adapter-modal-list li:hover {
+  background-color: var(--color-navy-600) !important;
+}

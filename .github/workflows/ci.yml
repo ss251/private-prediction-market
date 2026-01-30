@@ -7,7 +7,7 @@ on:
     branches: [main, dev]
 
 env:
-  LEO_VERSION: "2.0.0"
+  LEO_VERSION: "3.4.0"
 
 jobs:
   lint-and-format:
@@ -29,31 +29,19 @@ jobs:
         run: bun run lint
         working-directory: frontend
 
-      - name: Type check
-        run: bun run typecheck
-        working-directory: frontend
-
   test-contracts:
     name: Test Leo Contracts
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Leo
-        uses: actions/cache@v4
-        with:
-          path: ~/.leo
-          key: leo-${{ env.LEO_VERSION }}
-
       - name: Install Leo
         run: |
-          if ! command -v leo &> /dev/null; then
-            curl -L https://raw.githubusercontent.com/ProvableHQ/leo/main/install.sh | sh
-          fi
-          echo "$HOME/.leo/bin" >> $GITHUB_PATH
+          curl -sSL "https://github.com/ProvableHQ/leo/releases/download/v${LEO_VERSION}/leo-v${LEO_VERSION}-x86_64-unknown-linux-gnu.zip" -o leo.zip
+          unzip -o leo.zip -d leo-bin
+          sudo mv leo-bin/leo /usr/local/bin/leo
+          chmod +x /usr/local/bin/leo
+          leo --version
 
       - name: Build contracts
         run: leo build

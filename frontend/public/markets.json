@@ -1,0 +1,34 @@
+{
+  "markets": {
+    "1field": {
+      "question": "Will Bitcoin exceed $120K by end of January 2026?",
+      "endDate": "2026-01-31",
+      "category": "crypto"
+    },
+    "2field": {
+      "question": "Will Bitcoin hit $150K before July 2026?",
+      "endDate": "2026-06-30",
+      "category": "crypto"
+    },
+    "3field": {
+      "question": "Will there be a US federal government shutdown before April 2026?",
+      "endDate": "2026-03-31",
+      "category": "politics"
+    },
+    "4field": {
+      "question": "Will OpenAI IPO in 2026?",
+      "endDate": "2026-12-31",
+      "category": "tech"
+    },
+    "5field": {
+      "question": "Will Tesla launch unsupervised FSD in any US state by June 2026?",
+      "endDate": "2026-06-30",
+      "category": "tech"
+    },
+    "6field": {
+      "question": "Will the Fed cut rates by 50+ basis points by June 2026?",
+      "endDate": "2026-06-30",
+      "category": "other"
+    }
+  }
+}

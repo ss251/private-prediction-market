@@ -1,0 +1,17 @@
+{
+  "name": "prediction-market-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run unit/",
+    "test:contract": "vitest run contract/",
+    "test:integration": "vitest run integration/",
+    "test:all": "vitest run --reporter=verbose"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.1",
+    "typescript": "~5.8.3"
+  }
+}

@@ -47,3 +47,5 @@ coverage/
 CLAUDE.md
 ai/
 research/
+.vercel
+.env*.local
