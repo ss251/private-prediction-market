@@ -16,15 +16,18 @@
     "@demox-labs/aleo-wallet-adapter-leo": "^0.0.25",
     "@demox-labs/aleo-wallet-adapter-react": "^0.0.22",
     "@demox-labs/aleo-wallet-adapter-reactui": "^0.0.36",
+    "@gsap/react": "^2.1.2",
     "@provablehq/sdk": "^0.9.15",
     "@supabase/supabase-js": "^2.93.3",
     "@tanstack/react-query": "^5.90.20",
     "@zkportal/aleo-oracle-sdk": "^2.1.1",
     "comlink": "^4.4.2",
     "drizzle-orm": "^0.45.1",
+    "gsap": "^3.14.2",
     "postgres": "^3.4.8",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.13.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

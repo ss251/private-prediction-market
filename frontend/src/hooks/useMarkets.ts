@@ -6,7 +6,7 @@ import {
   fetchMarketRegistry,
   getMarketLabel,
 } from "../lib/marketRegistry";
-import type { Market } from "../db/types";
+import type { SupabaseMarketRow } from "../db/types";
 
 /**
  * Unified market data that works with both Supabase and chain fallback.
@@ -36,25 +36,25 @@ const STATUS_MAP: Record<number, DisplayMarket["status"]> = {
   3: "cancelled",
 };
 
-function supabaseMarketToDisplay(m: Market): DisplayMarket {
+function supabaseRowToDisplay(m: SupabaseMarketRow): DisplayMarket {
   let outcome: boolean | undefined;
   if (m.outcome === 1) outcome = true;
   else if (m.outcome === 2) outcome = false;
 
   return {
-    id: m.marketId,
+    id: m.market_id,
     question: m.title,
-    yesPool: m.yesPool ?? 0,
-    noPool: m.noPool ?? 0,
+    yesPool: m.yes_pool ?? 0,
+    noPool: m.no_pool ?? 0,
     status: STATUS_MAP[m.status ?? 0] ?? "open",
-    endDate: m.endDate,
+    endDate: m.end_date,
     outcome,
     paused: m.paused ?? false,
-    endTime: m.endBlock ?? undefined,
+    endTime: m.end_block ?? undefined,
     description: m.description ?? undefined,
-    categoryId: m.categoryId ?? undefined,
-    totalVolume: m.totalVolume ?? undefined,
-    yesProbability: m.yesProbability ?? undefined,
+    categoryId: m.category_id ?? undefined,
+    totalVolume: m.total_volume ?? undefined,
+    yesProbability: m.yes_probability ?? undefined,
   };
 }
 
@@ -93,7 +93,7 @@ export function useMarkets() {
         try {
           const markets = await fetchMarkets();
           if (markets.length > 0) {
-            return markets.map(supabaseMarketToDisplay);
+            return markets.map(supabaseRowToDisplay);
           }
         } catch (e) {
           console.warn("Supabase fetch failed, falling back to chain:", e);
@@ -110,7 +110,7 @@ export function useMarkets() {
     const channel = subscribeToMarkets((updated) => {
       queryClient.setQueryData<DisplayMarket[]>(["markets"], (old) => {
         if (!old) return old;
-        const display = supabaseMarketToDisplay(updated);
+        const display = supabaseRowToDisplay(updated);
         const exists = old.some((m) => m.id === display.id);
         if (exists) {
           return old.map((m) => (m.id === display.id ? display : m));

@@ -19,11 +19,12 @@ export interface MarketHistoryData {
 export function useMarketHistory(
   marketId: string,
   userAddress: string | null,
-  enabled: boolean = true
+  enabled: boolean = true,
+  initialMarketData?: MarketData | null,
 ): MarketHistoryData {
   const { requestRecords } = useWallet();
 
-  // Fetch current market state
+  // Fetch current market state (skip if we already have data)
   const {
     data: marketData,
     isLoading: isMarketLoading,
@@ -31,7 +32,8 @@ export function useMarketHistory(
   } = useQuery({
     queryKey: ["marketHistory", marketId],
     queryFn: () => getMarketData(marketId),
-    enabled,
+    enabled: enabled && !initialMarketData,
+    initialData: initialMarketData ?? undefined,
     refetchInterval: 60_000,
     staleTime: 30_000,
   });

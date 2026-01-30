@@ -88,7 +88,7 @@ export function RefundModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-navy-800 rounded-2xl max-w-md w-full p-6 border border-navy-600 shadow-2xl">
+      <div className="bg-navy-800 rounded-lg max-w-md w-full p-6 border-2 border-navy-600 shadow-2xl">
         <div className="flex justify-between items-start mb-4">
           <h2 className="font-heading text-xl font-bold text-white">Claim Refund</h2>
           <button

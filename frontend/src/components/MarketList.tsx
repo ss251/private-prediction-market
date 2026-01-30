@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
 import { MarketCard } from "./MarketCard";
 import { BetModal } from "./BetModal";
 import { ClaimModal } from "./ClaimModal";
 import { RefundModal } from "./RefundModal";
-import { MarketHistory } from "./MarketHistory";
 import { ResolveModal } from "./OracleResolveModal";
 import { CreateMarketModal } from "./CreateMarketModal";
 import {
@@ -19,10 +20,10 @@ import {
 } from "../hooks/useUserPositions";
 import { useMarkets, type DisplayMarket } from "../hooks/useMarkets";
 
-type ModalType = "bet" | "claim" | "refund" | "history" | "resolve" | "create";
+type ModalType = "bet" | "claim" | "refund" | "resolve" | "create";
 
 export function MarketList() {
-  const { connected, publicKey } = useWallet();
+  const { connected } = useWallet();
   const [selectedMarket, setSelectedMarket] = useState<DisplayMarket | null>(
     null
   );
@@ -86,11 +87,6 @@ export function MarketList() {
     setActiveModal("refund");
   };
 
-  const handleViewHistory = (market: DisplayMarket) => {
-    setSelectedMarket(market);
-    setActiveModal("history");
-  };
-
   const handleResolve = (market: DisplayMarket) => {
     setSelectedMarket(market);
     setActiveModal("resolve");
@@ -103,7 +99,6 @@ export function MarketList() {
   };
 
   const handleBetPlaced = () => {
-    // Signal refetch of positions — no localStorage write
     refetchPositions();
   };
 
@@ -115,6 +110,28 @@ export function MarketList() {
     refetchPositions();
   };
 
+  // GSAP stagger animation for market cards
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    if (!markets || markets.length === 0) return;
+
+    gsap.from(".market-card-item", {
+      opacity: 0,
+      y: 30,
+      duration: 0.5,
+      stagger: 0.08,
+      ease: "power2.out",
+    });
+
+    gsap.from(".market-header", {
+      opacity: 0,
+      x: -20,
+      duration: 0.4,
+      ease: "power2.out",
+    });
+  }, { scope: sectionRef, dependencies: [markets?.length] });
+
   // Get chain data for claim modal
   const selectedChainMarket = selectedMarket
     ? chainMarkets.find((m) => m.id === selectedMarket.id)
@@ -125,10 +142,10 @@ export function MarketList() {
     : null;
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
+    <div ref={sectionRef}>
+      <div className="market-header flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
         <div className="flex items-center gap-3">
-          <h2 className="font-heading text-2xl font-bold text-white">Active Markets</h2>
+          <h2 className="font-heading text-xl sm:text-2xl font-bold text-white">Active Markets</h2>
           {isLoading && (
             <span className="text-sm text-gray-400 animate-pulse">
               Loading...
@@ -142,7 +159,7 @@ export function MarketList() {
           {connected && (
             <button
               onClick={() => setActiveModal("create")}
-              className="btn-primary px-4 py-2 rounded-xl text-sm"
+              className="btn-primary px-4 py-2 rounded-lg text-sm"
             >
               + Create Market
             </button>
@@ -155,21 +172,21 @@ export function MarketList() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
         {(markets ?? []).map((market) => {
           const position = getPositionForMarket(market.id);
 
           return (
+            <div key={market.id} className="market-card-item">
             <MarketCard
-              key={market.id}
               market={market}
               onBet={() => handleBet(market)}
               onClaim={() => handleClaim(market)}
               onRefund={() => handleRefund(market)}
-              onViewHistory={() => handleViewHistory(market)}
               onResolve={() => handleResolve(market)}
               userPosition={position}
             />
+            </div>
           );
         })}
       </div>
@@ -240,12 +257,12 @@ export function MarketList() {
       {/* Resolve Modal */}
       {selectedMarket &&
         activeModal === "resolve" &&
-        selectedChainMarket && (
+        (selectedChainMarket || selectedMarket) && (
           <ResolveModal
             marketId={selectedMarket.id}
             question={selectedMarket.question}
-            yesPool={selectedChainMarket.yesPool}
-            noPool={selectedChainMarket.noPool}
+            yesPool={selectedChainMarket?.yesPool ?? BigInt(selectedMarket.yesPool)}
+            noPool={selectedChainMarket?.noPool ?? BigInt(selectedMarket.noPool)}
             isOpen={true}
             onClose={handleModalClose}
             onResolved={() => {
@@ -254,17 +271,6 @@ export function MarketList() {
             }}
           />
         )}
-
-      {/* Market History Modal */}
-      {selectedMarket && activeModal === "history" && (
-        <MarketHistory
-          marketId={selectedMarket.id}
-          question={selectedMarket.question}
-          userAddress={publicKey ?? null}
-          isOpen={true}
-          onClose={handleModalClose}
-        />
-      )}
     </div>
   );
 }

@@ -135,7 +135,7 @@ function CalendarPicker({
               className={`
                 relative h-8 rounded-lg text-xs font-medium transition-all
                 ${isSelected
-                  ? "bg-accent text-white shadow-[0_0_8px_rgba(99,102,241,0.4)]"
+                  ? "bg-accent text-navy-950 shadow-[0_0_8px_rgba(255,210,127,0.4)]"
                   : isDisabled
                     ? "text-gray-700 cursor-not-allowed"
                     : "text-gray-300 hover:bg-navy-700 hover:text-white"
@@ -333,7 +333,7 @@ export function CreateMarketModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-navy-800 rounded-2xl max-w-lg w-full p-6 border border-navy-600 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-navy-800 rounded-lg max-w-lg w-full p-6 border-2 border-navy-600 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-start mb-4">
           <h2 className="font-heading text-xl font-bold text-white">Create Market</h2>
           <button

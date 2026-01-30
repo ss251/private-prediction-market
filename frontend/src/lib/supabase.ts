@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient, type RealtimeChannel } from "@supabase/supabase-js";
-import type { Market, PoolSnapshot, PlatformStats, Category, MarketMetaInsert } from "../db/types";
+import type { PoolSnapshot, PlatformStats, Category, MarketMetaInsert, SupabaseMarketRow } from "../db/types";
 
 // --- Client (null if env vars missing — graceful fallback to chain queries) ---
 
@@ -11,17 +11,17 @@ export const supabase: SupabaseClient | null =
 
 // --- Typed query helpers ---
 
-export async function fetchMarkets(): Promise<Market[]> {
+export async function fetchMarkets(): Promise<SupabaseMarketRow[]> {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from("markets")
     .select("*")
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as Market[];
+  return (data ?? []) as SupabaseMarketRow[];
 }
 
-export async function fetchMarket(id: string): Promise<Market | null> {
+export async function fetchMarket(id: string): Promise<SupabaseMarketRow | null> {
   if (!supabase) return null;
   const { data, error } = await supabase
     .from("markets")
@@ -32,7 +32,7 @@ export async function fetchMarket(id: string): Promise<Market | null> {
     if (error.code === "PGRST116") return null; // not found
     throw error;
   }
-  return data as Market;
+  return data as SupabaseMarketRow;
 }
 
 export async function fetchPoolHistory(
@@ -94,7 +94,7 @@ export async function upsertMarketMeta(meta: MarketMetaInsert): Promise<void> {
 // --- Realtime subscription ---
 
 export function subscribeToMarkets(
-  callback: (market: Market) => void,
+  callback: (market: SupabaseMarketRow) => void,
 ): RealtimeChannel | null {
   if (!supabase) return null;
   return supabase
@@ -104,7 +104,7 @@ export function subscribeToMarkets(
       { event: "*", schema: "public", table: "markets" },
       (payload) => {
         if (payload.new && typeof payload.new === "object") {
-          callback(payload.new as Market);
+          callback(payload.new as SupabaseMarketRow);
         }
       },
     )

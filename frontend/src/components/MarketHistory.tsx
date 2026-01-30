@@ -1,7 +1,7 @@
 // Market history modal: overview, user position, privacy notice
 
 import { useMarketHistory } from "../hooks/useMarketHistory";
-import { formatCredits, formatPool, MarketStatus } from "../lib/aleo";
+import { formatCredits, formatPool, MarketStatus, type MarketData } from "../lib/aleo";
 
 interface MarketHistoryProps {
   marketId: string;
@@ -9,6 +9,7 @@ interface MarketHistoryProps {
   userAddress: string | null;
   isOpen: boolean;
   onClose: () => void;
+  initialMarketData?: MarketData | null;
 }
 
 const STATUS_LABELS: Record<number, { text: string; className: string }> = {
@@ -36,12 +37,13 @@ export function MarketHistory({
   userAddress,
   isOpen,
   onClose,
+  initialMarketData,
 }: MarketHistoryProps) {
   const {
     userPosition,
     marketData,
     isLoading,
-  } = useMarketHistory(marketId, userAddress, isOpen);
+  } = useMarketHistory(marketId, userAddress, isOpen, initialMarketData);
 
   if (!isOpen) return null;
 
@@ -62,7 +64,7 @@ export function MarketHistory({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-navy-800 rounded-2xl border border-navy-600 shadow-2xl w-full max-w-2xl my-8">
+      <div className="bg-navy-800 rounded-lg border-2 border-navy-600 shadow-2xl w-full max-w-2xl my-8">
         {/* Header */}
         <div className="flex items-start justify-between p-6 border-b border-navy-600">
           <div className="flex-1 mr-4">
@@ -228,7 +230,7 @@ export function MarketHistory({
             </h3>
             <div className="bg-navy-900 rounded-xl p-4 border border-navy-600">
               <div className="flex items-start gap-3">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4A054" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                 </svg>
                 <div className="space-y-2">

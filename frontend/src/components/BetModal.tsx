@@ -122,7 +122,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-navy-800 rounded-2xl max-w-md w-full p-6 border border-navy-600 shadow-2xl">
+      <div className="bg-navy-800 rounded-lg max-w-md w-full p-6 border-2 border-navy-600 shadow-2xl">
         <div className="flex justify-between items-start mb-4">
           <h2 className="font-heading text-xl font-bold text-white">Place Your Bet</h2>
           <button
@@ -252,7 +252,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
 
           {/* Privacy notice */}
           <div className="text-xs text-gray-500 mb-4 flex items-start gap-2">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D4A054" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
             <span>

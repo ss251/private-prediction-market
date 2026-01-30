@@ -1,48 +1,35 @@
 import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
 import { WalletMultiButton } from "@demox-labs/aleo-wallet-adapter-reactui";
 
-export function Header() {
+interface HeaderProps {
+  onHowItWorks?: () => void;
+}
+
+export function Header({ onHowItWorks }: HeaderProps) {
   const { connected, publicKey, connecting } = useWallet();
 
   return (
-    <header className="border-b border-navy-600 bg-navy-900/60 backdrop-blur-lg sticky top-0 z-40">
-      <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-        <div className="flex items-center gap-2.5">
-          {/* SVG shield-lock logo */}
-          <svg
-            width="28"
-            height="28"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="url(#logo-gradient)"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <defs>
-              <linearGradient id="logo-gradient" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#6366f1" />
-                <stop offset="100%" stopColor="#06b6d4" />
-              </linearGradient>
-            </defs>
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            <rect x="9" y="10" width="6" height="5" rx="1" />
-            <path d="M10 10V8a2 2 0 1 1 4 0v2" />
-          </svg>
+    <header className="border-b-2 border-navy-600 bg-navy-900/80 backdrop-blur-lg sticky top-0 z-40">
+      <div className="container mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex justify-between items-center gap-2">
+        <a href="/" className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <img
+            src="/logo.png"
+            alt="Lasagna"
+            className="w-8 h-8 sm:w-10 sm:h-10"
+          />
           <div>
-            <h1 className="font-heading text-lg font-semibold text-white">
-              Private Prediction Market
+            <h1 className="font-heading text-lg sm:text-2xl text-accent tracking-wide">
+              Lasagna
             </h1>
-            <p className="text-xs text-privacy font-medium flex items-center gap-1.5">
-              Powered by
-              <img src="/aleo-wordmark.svg" alt="Aleo" className="h-3 inline-block opacity-80" />
+            <p className="text-[9px] sm:text-[10px] text-gray-500 font-medium tracking-widest uppercase hidden xs:block">
+              Move in Silence
             </p>
           </div>
-        </div>
+        </a>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           {connected && publicKey && (
-            <div className="hidden sm:flex items-center gap-2 text-sm">
+            <div className="hidden md:flex items-center gap-2 text-sm">
               <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
               <span className="text-gray-400 font-mono text-xs">
                 {publicKey.slice(0, 6)}...{publicKey.slice(-4)}
@@ -51,21 +38,28 @@ export function Header() {
           )}
 
           {connecting && (
-            <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="hidden sm:flex items-center gap-2 text-sm text-gray-400">
               <span className="css-spinner-sm" />
               <span>Connecting...</span>
             </div>
           )}
 
+          {onHowItWorks && (
+            <button
+              onClick={onHowItWorks}
+              className="w-8 h-8 shrink-0 rounded-md border-2 border-navy-600 hover:border-accent/40 bg-navy-800 flex items-center justify-center text-gray-400 hover:text-accent transition-colors"
+              title="How it works"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </button>
+          )}
+
           <WalletMultiButton />
         </div>
-      </div>
-
-      {/* Network badge */}
-      <div className="bg-amber-900/20 border-t border-amber-800/30 px-4 py-1 text-center">
-        <span className="text-xs text-amber-500/80">
-          Testnet Beta — Not real funds
-        </span>
       </div>
     </header>
   );
