@@ -82,7 +82,7 @@ export function HeroSection() {
               {/* Rows */}
               {([
                 ["Bet direction", true, false],
-                ["Bet amount", true, false],
+                ["Bet amount", true, true],
                 ["Wallet link", true, false],
                 ["Pool totals", true, true],
                 ["Market outcome", true, true],

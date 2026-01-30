@@ -35,7 +35,7 @@ const slides = [
     description:
       "Bet with Aleo credits. Your transaction generates a zero-knowledge proof — so only aggregate pool totals are public.",
     privacy:
-      "Your bet amount and wallet identity stay hidden from everyone.",
+      "Your bet direction and wallet identity stay hidden from everyone. Only the amount and pool totals are public.",
     icon: (
       <div className="flex flex-col items-center gap-3">
         <div className="glass-card px-6 py-4 flex flex-col items-center gap-1 relative">
