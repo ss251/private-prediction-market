@@ -12,56 +12,12 @@ import {
   getAllMarketIds,
   getMarkets,
   type MarketData,
-  MarketStatus,
 } from "../lib/aleo";
-import {
-  fetchMarketRegistry,
-  getMarketLabel,
-  type MarketRegistry,
-} from "../lib/marketRegistry";
 import {
   useUserPositions,
   type OnChainPosition,
 } from "../hooks/useUserPositions";
-
-// Combine on-chain data with off-chain metadata
-interface DisplayMarket {
-  id: string;
-  question: string;
-  yesPool: number;
-  noPool: number;
-  status: "open" | "closed" | "resolved" | "cancelled";
-  endDate: string;
-  outcome?: boolean;
-  paused?: boolean;
-  endTime?: number;
-}
-
-function toDisplayMarket(
-  market: MarketData,
-  registry: MarketRegistry
-): DisplayMarket {
-  const meta = getMarketLabel(registry, market.id);
-
-  const statusMap: Record<MarketStatus, DisplayMarket["status"]> = {
-    [MarketStatus.OPEN]: "open",
-    [MarketStatus.CLOSED]: "closed",
-    [MarketStatus.RESOLVED]: "resolved",
-    [MarketStatus.CANCELLED]: "cancelled",
-  };
-
-  return {
-    id: market.id,
-    question: meta.question,
-    yesPool: Number(market.yesPool),
-    noPool: Number(market.noPool),
-    status: statusMap[market.status],
-    endDate: meta.endDate,
-    outcome: market.outcome,
-    paused: market.paused,
-    endTime: market.endTime,
-  };
-}
+import { useMarkets, type DisplayMarket } from "../hooks/useMarkets";
 
 type ModalType = "bet" | "claim" | "refund" | "history" | "resolve" | "create";
 
@@ -75,34 +31,29 @@ export function MarketList() {
   // Store raw chain data for claim calculations
   const [chainMarkets, setChainMarkets] = useState<MarketData[]>([]);
 
-  // Discover market IDs from on-chain registry
+  // Single-query market loading with Supabase + chain fallback + Realtime
+  const {
+    data: markets,
+    isLoading,
+    error,
+    refetch,
+  } = useMarkets();
+
+  // Discover market IDs for user positions + chain data (needed for claims)
   const { data: marketIds = [] } = useQuery({
     queryKey: ["marketIds"],
     queryFn: getAllMarketIds,
     refetchInterval: 60_000,
   });
 
-  // Fetch market registry metadata
-  const { data: registry } = useQuery({
-    queryKey: ["marketRegistry"],
-    queryFn: fetchMarketRegistry,
-  });
-
-  // Fetch on-chain market data
-  const {
-    data: markets,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ["markets", marketIds],
+  // Fetch raw chain data for claim calculations (pools must be precise)
+  useQuery({
+    queryKey: ["chainMarkets", marketIds],
     queryFn: async () => {
       if (marketIds.length === 0) return [];
-      const rawMarkets = await getMarkets(marketIds);
-      setChainMarkets(rawMarkets);
-      return rawMarkets.map((m) =>
-        toDisplayMarket(m, registry ?? { markets: {} })
-      );
+      const raw = await getMarkets(marketIds);
+      setChainMarkets(raw);
+      return raw;
     },
     enabled: marketIds.length > 0,
     refetchInterval: 30_000,

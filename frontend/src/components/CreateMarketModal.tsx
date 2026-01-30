@@ -13,6 +13,148 @@ import {
   estimateBlockHeight,
   getLatestHeight,
 } from "../lib/aleo";
+import { saveMarketMeta } from "../lib/marketRegistry";
+
+/* ── Inline Calendar Picker ──────────────────────────────────────────── */
+
+function CalendarPicker({
+  value,
+  minDate,
+  onChange,
+}: {
+  value: string;
+  minDate: string;
+  onChange: (date: string) => void;
+}) {
+  const today = new Date();
+  const initial = value
+    ? new Date(value + "T00:00:00")
+    : new Date(today.getFullYear(), today.getMonth() + 1, 1);
+
+  const [viewYear, setViewYear] = useState(initial.getFullYear());
+  const [viewMonth, setViewMonth] = useState(initial.getMonth());
+
+  const minD = new Date(minDate + "T00:00:00");
+
+  const toKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDow = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun
+
+  const prevMonth = () => {
+    if (viewMonth === 0) {
+      setViewYear(viewYear - 1);
+      setViewMonth(11);
+    } else {
+      setViewMonth(viewMonth - 1);
+    }
+  };
+  const nextMonth = () => {
+    if (viewMonth === 11) {
+      setViewYear(viewYear + 1);
+      setViewMonth(0);
+    } else {
+      setViewMonth(viewMonth + 1);
+    }
+  };
+
+  const canGoPrev = (() => {
+    const prevLast =
+      viewMonth === 0
+        ? new Date(viewYear - 1, 11, 31)
+        : new Date(viewYear, viewMonth, 0);
+    return prevLast >= minD;
+  })();
+
+  const MONTH_NAMES = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December",
+  ];
+  const DOW = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  return (
+    <div className="mt-2 bg-navy-900 border border-navy-600 rounded-xl p-3 select-none">
+      {/* Month / year nav */}
+      <div className="flex items-center justify-between mb-3">
+        <button
+          type="button"
+          onClick={prevMonth}
+          disabled={!canGoPrev}
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-navy-700 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+        <span className="text-sm font-semibold text-gray-200 tracking-wide">
+          {MONTH_NAMES[viewMonth]} {viewYear}
+        </span>
+        <button
+          type="button"
+          onClick={nextMonth}
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-navy-700 transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Day-of-week header */}
+      <div className="grid grid-cols-7 mb-1">
+        {DOW.map((d) => (
+          <div key={d} className="text-center text-[10px] font-medium text-gray-600 uppercase py-1">
+            {d}
+          </div>
+        ))}
+      </div>
+
+      {/* Day grid */}
+      <div className="grid grid-cols-7 gap-px">
+        {cells.map((day, i) => {
+          if (day === null)
+            return <div key={`e${i}`} />;
+
+          const cellDate = new Date(viewYear, viewMonth, day);
+          const key = toKey(cellDate);
+          const isSelected = key === value;
+          const isDisabled = cellDate < minD;
+          const isToday = toKey(today) === key;
+
+          return (
+            <button
+              key={key}
+              type="button"
+              disabled={isDisabled}
+              onClick={() => onChange(key)}
+              className={`
+                relative h-8 rounded-lg text-xs font-medium transition-all
+                ${isSelected
+                  ? "bg-accent text-white shadow-[0_0_8px_rgba(99,102,241,0.4)]"
+                  : isDisabled
+                    ? "text-gray-700 cursor-not-allowed"
+                    : "text-gray-300 hover:bg-navy-700 hover:text-white"
+                }
+              `}
+            >
+              {day}
+              {isToday && !isSelected && (
+                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent/60" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── CreateMarketModal ──────────────────────────────────────────────── */
 
 interface CreateMarketModalProps {
   isOpen: boolean;
@@ -39,6 +181,8 @@ export function CreateMarketModal({
 
   const [question, setQuestion] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [showCustomDate, setShowCustomDate] = useState(false);
 
   const [marketCount, setMarketCount] = useState<number | null>(null);
   const [estimatedBlock, setEstimatedBlock] = useState<number | null>(null);
@@ -96,6 +240,25 @@ export function CreateMarketModal({
     return new Date(Date.now() + 86400 * 1000).toISOString().split("T")[0];
   }, []);
 
+  const DURATION_PRESETS = [
+    { label: "1 Week", days: 7, key: "1w" },
+    { label: "2 Weeks", days: 14, key: "2w" },
+    { label: "1 Month", days: 30, key: "1m" },
+    { label: "3 Months", days: 90, key: "3m" },
+  ];
+
+  const selectPreset = (key: string, days: number) => {
+    const date = new Date(Date.now() + days * 86400 * 1000);
+    setEndDate(date.toISOString().split("T")[0]);
+    setSelectedPreset(key);
+    setShowCustomDate(false);
+  };
+
+  const selectCustomDate = (value: string) => {
+    setEndDate(value);
+    setSelectedPreset("custom");
+  };
+
   if (!isOpen) return null;
 
   const nextMarketId = marketCount !== null ? marketCount + 1 : null;
@@ -140,6 +303,9 @@ export function CreateMarketModal({
       return;
     }
 
+    // Persist metadata so it's available on reload without manual JSON editing
+    saveMarketMeta(marketId, { question, endDate });
+
     setCreatedMarketId(marketId);
     setPhase("success");
   };
@@ -148,6 +314,8 @@ export function CreateMarketModal({
     const wasSuccess = phase === "success";
     setQuestion("");
     setEndDate("");
+    setSelectedPreset(null);
+    setShowCustomDate(false);
     setMarketCount(null);
     setEstimatedBlock(null);
     setCurrentHeight(null);
@@ -249,23 +417,9 @@ export function CreateMarketModal({
               </div>
             </div>
 
-            <div>
-              <p className="text-sm text-gray-400 mb-2">
-                Add this entry to{" "}
-                <code className="text-gray-300 bg-navy-900 px-1.5 py-0.5 rounded">public/markets.json</code>:
-              </p>
-              <pre className="bg-navy-900 border border-navy-600 rounded-xl p-3 text-xs text-gray-300 overflow-x-auto font-mono">
-                {JSON.stringify(
-                  {
-                    [createdMarketId]: {
-                      question,
-                      endDate,
-                    },
-                  },
-                  null,
-                  2
-                )}
-              </pre>
+            <div className="p-3 bg-navy-900/60 border border-navy-600 rounded-xl text-sm text-gray-400 text-center">
+              Market metadata saved automatically. It will appear on the
+              homepage once the transaction confirms on-chain.
             </div>
 
             <button
@@ -299,21 +453,79 @@ export function CreateMarketModal({
               </div>
 
               <div className="mb-3">
-                <label className="block text-sm text-gray-400 mb-1">
+                <label className="block text-sm text-gray-400 mb-1.5">
                   End Date
                 </label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  min={minDate}
-                  className="w-full p-3 bg-navy-900 border border-navy-600 rounded-xl text-white focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none"
-                />
-                {estimatedBlock !== null && daysUntil !== null && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    End Block: ~{estimatedBlock.toLocaleString()} (~{daysUntil}{" "}
-                    days from now)
-                  </p>
+                <div className="grid grid-cols-4 gap-2 mb-2">
+                  {DURATION_PRESETS.map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => selectPreset(p.key, p.days)}
+                      className={`py-2 px-1 rounded-lg text-sm font-medium transition-colors ${
+                        selectedPreset === p.key
+                          ? "bg-accent/20 text-accent border border-accent/40"
+                          : "bg-navy-900 text-gray-400 border border-navy-600 hover:border-gray-500 hover:text-gray-300"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCustomDate(!showCustomDate)}
+                  className={`w-full p-3 rounded-xl text-left text-sm transition-colors flex items-center gap-2 ${
+                    showCustomDate || selectedPreset === "custom"
+                      ? "bg-accent/10 border border-accent/40 text-accent"
+                      : "bg-navy-900 border border-navy-600 text-gray-400 hover:border-gray-500 hover:text-gray-300"
+                  }`}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  {selectedPreset === "custom" && endDate
+                    ? new Date(endDate + "T00:00:00").toLocaleDateString(undefined, {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })
+                    : "Pick a custom date..."}
+                  <svg
+                    width="12" height="12" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    className={`ml-auto transition-transform ${showCustomDate ? "rotate-180" : ""}`}
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+                {showCustomDate && (
+                  <CalendarPicker
+                    value={endDate}
+                    minDate={minDate}
+                    onChange={(date) => {
+                      selectCustomDate(date);
+                      setShowCustomDate(false);
+                    }}
+                  />
+                )}
+                {endDate && estimatedBlock !== null && daysUntil !== null && (
+                  <div className="mt-2 p-2 bg-navy-900/60 rounded-lg flex items-center justify-between text-xs">
+                    <span className="text-gray-500">
+                      {new Date(endDate + "T00:00:00").toLocaleDateString(undefined, {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </span>
+                    <span className="text-gray-400">
+                      Block ~{estimatedBlock.toLocaleString()} ({daysUntil}d)
+                    </span>
+                  </div>
                 )}
               </div>
             </div>

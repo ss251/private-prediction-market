@@ -1,4 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// Mock Supabase as unavailable — tests exercise the localStorage + JSON fallback path
+vi.mock("../supabase", () => ({
+  supabase: null,
+  upsertMarketMeta: vi.fn().mockResolvedValue(undefined),
+}));
+
 import {
   fetchMarketRegistry,
   getMarketLabel,

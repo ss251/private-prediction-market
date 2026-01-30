@@ -83,71 +83,87 @@ export function useTransaction(): UseTransactionResult {
         setState("broadcasting");
         await new Promise((r) => setTimeout(r, 500));
 
-        // Confirming phase - poll via wallet adapter's transactionStatus
+        // Confirming phase - two steps:
+        // 1. Wait for wallet to finish (sign, prove, broadcast)
+        // 2. Verify on-chain via getExecution (wallet "Completed" != on-chain confirmed)
         setState("confirming");
 
         if (statusFn) {
-          // Use wallet adapter's transactionStatus for deterministic tracking
           const maxAttempts = 60;
           const pollInterval = 5000;
-          let confirmed = false;
+          let walletDone = false;
 
           for (let i = 0; i < maxAttempts; i++) {
             try {
               const status = await statusFn(transactionId);
               console.log(`[tx-poll] attempt ${i + 1}: status="${status}"`);
               const s = status.toLowerCase();
-              if (s === "finalized" || s === "completed" || s === "accepted") {
-                confirmed = true;
+              if (s === "finalized") {
+                // Truly on-chain confirmed — skip verification
+                walletDone = true;
+                break;
+              }
+              if (s === "completed" || s === "accepted") {
+                // Wallet finished its part but tx may not be on-chain yet
+                console.log("[tx-poll] wallet done, moving to on-chain verification");
+                walletDone = true;
                 break;
               }
               if (s === "failed" || s === "rejected") {
                 throw new Error(`Transaction ${s}`);
               }
             } catch (pollErr) {
-              // Re-throw if it's our own error (failed/rejected)
               if (pollErr instanceof Error && (pollErr.message.startsWith("Transaction failed") || pollErr.message.startsWith("Transaction rejected"))) {
                 throw pollErr;
               }
               console.log(`[tx-poll] attempt ${i + 1}: error`, pollErr);
-              // Otherwise wallet call failed - continue polling
             }
             await new Promise((r) => setTimeout(r, pollInterval));
           }
 
-          if (!confirmed) {
+          if (!walletDone) {
             throw new Error("Transaction confirmation timed out");
           }
         } else {
-          // No status function provided - brief wait then assume success
           await new Promise((r) => setTimeout(r, 2000));
+        }
+
+        // On-chain verification: wallet "Completed" just means it was broadcast.
+        // Poll getExecution to confirm the tx actually landed on-chain.
+        if (getExecutionFn) {
+          let onChainTxId: string | null = null;
+          const verifyAttempts = 24; // 24 × 5s = 2 minutes
+          const verifyInterval = 5000;
+
+          for (let i = 0; i < verifyAttempts; i++) {
+            await new Promise((r) => setTimeout(r, verifyInterval));
+            try {
+              const execution = await getExecutionFn(transactionId);
+              console.log(`[tx-verify] attempt ${i + 1}:`, execution);
+              if (typeof execution === "string" && execution.length > 0) {
+                const match = execution.match(/at1[a-z0-9]+/);
+                if (match) {
+                  onChainTxId = match[0];
+                }
+                break;
+              }
+            } catch (err) {
+              console.log(`[tx-verify] attempt ${i + 1}: not on-chain yet`);
+            }
+          }
+
+          if (onChainTxId) {
+            setTxId(onChainTxId);
+          } else {
+            throw new Error(
+              "Transaction was broadcast but could not be verified on-chain. " +
+              "It may still be processing — check the explorer."
+            );
+          }
         }
 
         setState("confirmed");
         clearInterval(intervalId);
-
-        // Resolve the real on-chain at1... tx ID in the background
-        // so the UI shows "confirmed" immediately while we fetch it
-        if (getExecutionFn) {
-          (async () => {
-            for (let attempt = 0; attempt < 5; attempt++) {
-              await new Promise((r) => setTimeout(r, 3000));
-              try {
-                const execution = await getExecutionFn(transactionId);
-                console.log(`[tx-resolve] attempt ${attempt + 1}:`, execution);
-                if (typeof execution === "string") {
-                  const match = execution.match(/at1[a-z0-9]+/);
-                  if (match) {
-                    setTxId(match[0]);
-                    return;
-                  }
-                }
-              } catch (execErr) {
-                console.log(`[tx-resolve] attempt ${attempt + 1}: error`, execErr);
-              }
-            }
-          })();
-        }
 
         // Reset to idle after showing success
         setTimeout(() => {
