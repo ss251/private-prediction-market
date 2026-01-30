@@ -207,7 +207,6 @@ Deno.serve(async (_req: Request) => {
     }
 
     // 4. Update platform stats
-    const openCount = marketIds.length; // Approximation; refine with status query
     const { data: allMarkets } = await supabase
       .from("markets")
       .select("status, yes_pool, no_pool");

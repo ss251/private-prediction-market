@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { WalletProvider } from '@demox-labs/aleo-wallet-adapter-react';
 import { WalletModalProvider, useWalletModal } from '@demox-labs/aleo-wallet-adapter-reactui';
@@ -12,6 +12,7 @@ import { MarketList } from './components/MarketList';
 import { MarketDetailPage } from './pages/MarketDetailPage';
 import { Footer } from './components/Footer';
 import { HowItWorksModal } from './components/HowItWorksModal';
+import { startIndexerPolling } from './lib/supabase';
 
 const queryClient = new QueryClient();
 
@@ -49,6 +50,9 @@ function AppContent() {
 }
 
 function App() {
+  // Start background indexer polling on mount
+  useEffect(() => { startIndexerPolling(); }, []);
+
   const wallets = useMemo(
     () => [
       new LeoWalletAdapter({

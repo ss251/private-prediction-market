@@ -91,6 +91,37 @@ export async function upsertMarketMeta(meta: MarketMetaInsert): Promise<void> {
   if (error) console.error("Failed to upsert market metadata:", error);
 }
 
+// --- Indexer trigger (fire-and-forget, keeps Supabase in sync with chain) ---
+
+let _indexerStarted = false;
+
+/**
+ * Triggers the index-markets Edge Function once on app load, then every 60s.
+ * This ensures Supabase stays in sync even if pg_cron isn't running.
+ * Safe to call multiple times — only starts once.
+ */
+export function startIndexerPolling(): void {
+  if (_indexerStarted || !supabase || !url) return;
+  _indexerStarted = true;
+
+  const invokeIndexer = () => {
+    fetch(`${url}/functions/v1/index-markets`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    }).catch(() => {
+      // Silent fail — indexer is best-effort, frontend has chain fallback
+    });
+  };
+
+  // Fire immediately, then every 60s
+  invokeIndexer();
+  setInterval(invokeIndexer, 60_000);
+}
+
 // --- Realtime subscription ---
 
 export function subscribeToMarkets(
