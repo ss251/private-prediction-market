@@ -27,7 +27,7 @@ export function ResolveModal({
   onClose,
   onResolved,
 }: ResolveModalProps) {
-  const { publicKey, requestTransaction, transactionStatus, getExecution } =
+  const { publicKey, requestTransaction, transactionStatus } =
     useWallet();
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
 
@@ -54,7 +54,7 @@ export function ResolveModal({
         const result = await requestTransaction(tx);
         return result;
       },
-      { statusFn: transactionStatus, getExecutionFn: getExecution }
+      { statusFn: transactionStatus }
     );
 
     if (resultTxId && onResolved) {

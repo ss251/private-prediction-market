@@ -1,5 +1,9 @@
 // Position tracking from wallet Bet records (private, not public mappings)
-import { useQuery } from "@tanstack/react-query";
+//
+// IMPORTANT: requestRecords() triggers a wallet approval popup every time.
+// This hook must NEVER run automatically. Callers use refetch() explicitly
+// after user-initiated actions (bet placed, claim, refund, modal open).
+import { useCallback, useState } from "react";
 import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
 import { PROGRAM_ID } from "../lib/aleo";
 
@@ -49,21 +53,32 @@ function parseRecords(rawRecords: unknown[]): OnChainPosition[] {
   }));
 }
 
+/**
+ * Returns user positions from wallet records.
+ * Does NOT fetch automatically — call `refetch()` explicitly when needed.
+ */
 export function useUserPositions(marketIds: string[]) {
   const { publicKey, requestRecords } = useWallet();
+  const [data, setData] = useState<OnChainPosition[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  return useQuery({
-    queryKey: ["userPositions", publicKey, marketIds],
-    queryFn: async (): Promise<OnChainPosition[]> => {
-      if (!publicKey || !requestRecords || marketIds.length === 0) return [];
+  const refetch = useCallback(async () => {
+    if (!publicKey || !requestRecords || marketIds.length === 0) {
+      setData([]);
+      return;
+    }
 
+    setIsLoading(true);
+    try {
       const rawRecords = await requestRecords(PROGRAM_ID);
       const positions = parseRecords(rawRecords as unknown[]);
+      setData(positions.filter((p) => marketIds.includes(p.marketId)));
+    } catch {
+      // User rejected or wallet error — keep existing data
+    } finally {
+      setIsLoading(false);
+    }
+  }, [publicKey, requestRecords, marketIds]);
 
-      // Only return positions for requested markets
-      return positions.filter((p) => marketIds.includes(p.marketId));
-    },
-    enabled: !!publicKey && !!requestRecords && marketIds.length > 0,
-    refetchInterval: 30_000,
-  });
+  return { data, isLoading, refetch };
 }

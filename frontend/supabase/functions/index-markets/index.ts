@@ -118,7 +118,17 @@ async function getAllMarketIds(): Promise<string[]> {
   return ids;
 }
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 Deno.serve(async (_req: Request) => {
+  // Handle CORS preflight
+  if (_req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   try {
     // 1. Get indexer cursor
     const { data: cursor } = await supabase
@@ -240,7 +250,7 @@ Deno.serve(async (_req: Request) => {
         snapshots: snapshotsInserted,
         markets: marketIds.length,
       }),
-      { headers: { "Content-Type": "application/json" } },
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -255,7 +265,7 @@ Deno.serve(async (_req: Request) => {
 
     return new Response(
       JSON.stringify({ ok: false, error: message }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });

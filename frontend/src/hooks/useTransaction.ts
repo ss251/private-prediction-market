@@ -23,7 +23,6 @@ export const stateMessages: Record<TransactionState, string> = {
 
 interface TransactionOptions {
   statusFn?: (txId: string) => Promise<string>;
-  getExecutionFn?: (txId: string) => Promise<string>;
 }
 
 interface UseTransactionResult {
@@ -56,7 +55,7 @@ export function useTransaction(): UseTransactionResult {
       fn: () => Promise<string>,
       opts?: TransactionOptions
     ): Promise<string | null> => {
-      const { statusFn, getExecutionFn } = opts ?? {};
+      const { statusFn } = opts ?? {};
       setError(null);
       setTxId(null);
       setElapsed(0);
@@ -83,9 +82,7 @@ export function useTransaction(): UseTransactionResult {
         setState("broadcasting");
         await new Promise((r) => setTimeout(r, 500));
 
-        // Confirming phase - two steps:
-        // 1. Wait for wallet to finish (sign, prove, broadcast)
-        // 2. Verify on-chain via getExecution (wallet "Completed" != on-chain confirmed)
+        // Confirming phase: wait for wallet to report completion
         setState("confirming");
 
         if (statusFn) {
@@ -98,14 +95,7 @@ export function useTransaction(): UseTransactionResult {
               const status = await statusFn(transactionId);
               console.log(`[tx-poll] attempt ${i + 1}: status="${status}"`);
               const s = status.toLowerCase();
-              if (s === "finalized") {
-                // Truly on-chain confirmed — skip verification
-                walletDone = true;
-                break;
-              }
-              if (s === "completed" || s === "accepted") {
-                // Wallet finished its part but tx may not be on-chain yet
-                console.log("[tx-poll] wallet done, moving to on-chain verification");
+              if (s === "finalized" || s === "completed" || s === "accepted") {
                 walletDone = true;
                 break;
               }
@@ -128,40 +118,8 @@ export function useTransaction(): UseTransactionResult {
           await new Promise((r) => setTimeout(r, 2000));
         }
 
-        // On-chain verification: wallet "Completed" just means it was broadcast.
-        // Poll getExecution to confirm the tx actually landed on-chain.
-        if (getExecutionFn) {
-          let onChainTxId: string | null = null;
-          const verifyAttempts = 24; // 24 × 5s = 2 minutes
-          const verifyInterval = 5000;
-
-          for (let i = 0; i < verifyAttempts; i++) {
-            await new Promise((r) => setTimeout(r, verifyInterval));
-            try {
-              const execution = await getExecutionFn(transactionId);
-              console.log(`[tx-verify] attempt ${i + 1}:`, execution);
-              if (typeof execution === "string" && execution.length > 0) {
-                const match = execution.match(/at1[a-z0-9]+/);
-                if (match) {
-                  onChainTxId = match[0];
-                }
-                break;
-              }
-            } catch (err) {
-              console.log(`[tx-verify] attempt ${i + 1}: not on-chain yet`);
-            }
-          }
-
-          if (onChainTxId) {
-            setTxId(onChainTxId);
-          } else {
-            throw new Error(
-              "Transaction was broadcast but could not be verified on-chain. " +
-              "It may still be processing — check the explorer."
-            );
-          }
-        }
-
+        // Wallet reports done — transaction is signed, proved, and broadcast.
+        // On-chain finalization happens in subsequent blocks; user can check explorer.
         setState("confirmed");
         clearInterval(intervalId);
 

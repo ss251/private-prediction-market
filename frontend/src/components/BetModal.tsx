@@ -25,7 +25,7 @@ interface BetModalProps {
 }
 
 export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps) {
-  const { publicKey, requestTransaction, transactionStatus, getExecution } = useWallet();
+  const { publicKey, requestTransaction, transactionStatus } = useWallet();
   const [outcome, setOutcome] = useState<"yes" | "no">("yes");
   const [amount, setAmount] = useState("");
   const [balance, setBalance] = useState<bigint | null>(null);
@@ -96,7 +96,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced }: BetModalProps
         const result = await requestTransaction(tx);
         return result;
       },
-      { statusFn: transactionStatus, getExecutionFn: getExecution }
+      { statusFn: transactionStatus }
     );
 
     if (resultTxId && onBetPlaced) {

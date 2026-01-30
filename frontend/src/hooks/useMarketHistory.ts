@@ -74,7 +74,9 @@ export function useMarketHistory(
       }
     },
     enabled: enabled && !!userAddress && !!requestRecords,
-    refetchInterval: 30_000,
+    // Never auto-refetch: requestRecords triggers a wallet popup each time.
+    refetchInterval: false,
+    staleTime: Infinity,
   });
 
   return {

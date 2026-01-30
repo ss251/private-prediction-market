@@ -27,7 +27,7 @@ export function RefundModal({
   onClose,
   onRefunded,
 }: RefundModalProps) {
-  const { publicKey, requestTransaction, transactionStatus, getExecution } =
+  const { publicKey, requestTransaction, transactionStatus } =
     useWallet();
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
   const { fetchBetRecords, loading: recordsLoading } = useBetRecords();
@@ -70,7 +70,7 @@ export function RefundModal({
         const result = await requestTransaction(tx);
         return result;
       },
-      { statusFn: transactionStatus, getExecutionFn: getExecution }
+      { statusFn: transactionStatus }
     );
 
     if (resultTxId && onRefunded) {

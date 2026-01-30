@@ -56,13 +56,12 @@ export function MarketDetailPage() {
   const { data: markets, refetch } = useMarkets();
   const market = markets?.find((m) => m.id === marketId) ?? null;
 
-  // Fetch chain data for precise pool amounts
-  const { data: chainData } = useQuery({
+  // Fetch chain data for precise pool amounts (once, refresh on modal close)
+  const { data: chainData, refetch: refetchChain } = useQuery({
     queryKey: ["chainMarket", marketId],
     queryFn: () => getMarketData(marketId!),
     enabled: !!marketId,
-    refetchInterval: 30_000,
-    staleTime: 15_000,
+    staleTime: 60_000,
   });
 
   // User positions
@@ -86,6 +85,7 @@ export function MarketDetailPage() {
   const handleModalClose = () => {
     setActiveModal(null);
     refetch();
+    refetchChain();
     refetchPositions();
   };
 

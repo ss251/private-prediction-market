@@ -1,6 +1,6 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
-import { useQuery } from "@tanstack/react-query";
+import type {} from "@tanstack/react-query";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { MarketCard } from "./MarketCard";
@@ -10,7 +10,6 @@ import { RefundModal } from "./RefundModal";
 import { ResolveModal } from "./OracleResolveModal";
 import { CreateMarketModal } from "./CreateMarketModal";
 import {
-  getAllMarketIds,
   getMarkets,
   type MarketData,
 } from "../lib/aleo";
@@ -40,31 +39,31 @@ export function MarketList() {
     refetch,
   } = useMarkets();
 
-  // Discover market IDs for user positions + chain data (needed for claims)
-  const { data: marketIds = [] } = useQuery({
-    queryKey: ["marketIds"],
-    queryFn: getAllMarketIds,
-    refetchInterval: 60_000,
-  });
+  // Derive market IDs from loaded markets (no extra chain query needed)
+  const marketIds = (markets ?? []).map((m) => m.id);
 
-  // Fetch raw chain data for claim calculations (pools must be precise)
-  useQuery({
-    queryKey: ["chainMarkets", marketIds],
-    queryFn: async () => {
-      if (marketIds.length === 0) return [];
-      const raw = await getMarkets(marketIds);
-      setChainMarkets(raw);
-      return raw;
-    },
-    enabled: marketIds.length > 0,
-    refetchInterval: 30_000,
-  });
-
-  // Fetch user positions for all discovered markets
+  // Fetch user positions — only runs once when wallet connects + marketIds available.
+  // No auto-refetch; callers use refetchPositions() after bet/claim/refund.
   const {
     data: positions = [],
     refetch: refetchPositions,
   } = useUserPositions(marketIds);
+
+  // Fetch precise chain data on-demand for claim/refund modals
+  const fetchChainDataForMarket = useCallback(
+    async (id: string) => {
+      try {
+        const raw = await getMarkets([id]);
+        setChainMarkets((prev) => {
+          const filtered = prev.filter((m) => m.id !== id);
+          return [...filtered, ...raw];
+        });
+      } catch (e) {
+        console.warn("Failed to fetch chain data for", id, e);
+      }
+    },
+    []
+  );
 
   const getPositionForMarket = (
     marketId: string
@@ -80,16 +79,19 @@ export function MarketList() {
   const handleClaim = (market: DisplayMarket) => {
     setSelectedMarket(market);
     setActiveModal("claim");
+    fetchChainDataForMarket(market.id);
   };
 
   const handleRefund = (market: DisplayMarket) => {
     setSelectedMarket(market);
     setActiveModal("refund");
+    fetchChainDataForMarket(market.id);
   };
 
   const handleResolve = (market: DisplayMarket) => {
     setSelectedMarket(market);
     setActiveModal("resolve");
+    fetchChainDataForMarket(market.id);
   };
 
   const handleModalClose = () => {
