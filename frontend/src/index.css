@@ -140,6 +140,8 @@ body {
 }
 
 /* ── Wallet Adapter Overrides ── */
+
+/* Header connect/disconnect button */
 .wallet-adapter-button {
   background: var(--color-accent) !important;
   color: var(--color-navy-950) !important;
@@ -152,23 +154,29 @@ body {
   font-size: 14px !important;
   padding: 0 12px !important;
   height: 40px !important;
+}
+.wallet-adapter-button:hover {
+  box-shadow: 1px 1px 0 0 var(--color-navy-600) !important;
+  transform: translate(2px, 2px) !important;
+}
+
+/* Only constrain the trigger button in the header, not modal list buttons */
+.wallet-adapter-button-trigger {
   max-width: 180px !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
 }
 @media (max-width: 480px) {
-  .wallet-adapter-button {
+  .wallet-adapter-button-trigger {
     max-width: 140px !important;
     font-size: 12px !important;
     padding: 0 10px !important;
     height: 36px !important;
   }
 }
-.wallet-adapter-button:hover {
-  box-shadow: 1px 1px 0 0 var(--color-navy-600) !important;
-  transform: translate(2px, 2px) !important;
-}
+
+/* Modal wrapper */
 .wallet-adapter-modal-wrapper {
   background-color: var(--color-navy-800) !important;
   border: 2px solid var(--color-navy-600) !important;
@@ -177,9 +185,38 @@ body {
 .wallet-adapter-modal-button-close {
   background-color: var(--color-navy-700) !important;
 }
+
+/* Modal list: wallet items need full width, no truncation */
+.wallet-adapter-modal-list .wallet-adapter-button {
+  width: 100% !important;
+  max-width: none !important;
+  overflow: visible !important;
+  white-space: normal !important;
+  text-overflow: unset !important;
+  font-weight: 400 !important;
+  font-size: 18px !important;
+  height: auto !important;
+  padding: 10px 16px !important;
+  box-shadow: none !important;
+  border: none !important;
+  background: transparent !important;
+  color: white !important;
+  display: flex !important;
+  align-items: center !important;
+}
+.wallet-adapter-modal-list .wallet-adapter-button:hover {
+  box-shadow: none !important;
+  transform: none !important;
+}
+.wallet-adapter-modal-list .wallet-adapter-button span {
+  margin-left: auto !important;
+  font-size: 14px !important;
+  opacity: 0.6 !important;
+}
 .wallet-adapter-modal-list li {
   background-color: var(--color-navy-700) !important;
   border-radius: 6px !important;
+  margin-bottom: 4px !important;
 }
 .wallet-adapter-modal-list li:hover {
   background-color: var(--color-navy-600) !important;
