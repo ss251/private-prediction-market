@@ -1,6 +1,6 @@
 <p align="center">
     <h1 align="center">Private Prediction Market</h1>
-    <p align="center">A parimutuel prediction market on Aleo where bet positions are private and pool totals are public.</p>
+    <p align="center">A parimutuel prediction market on Aleo where bettor identity is private and pool totals are public.</p>
 </p>
 
 <p align="center">
@@ -44,7 +44,7 @@
 
 ## 1. Overview
 
-Users bet on binary (YES/NO) outcomes. Credits are pooled per side. After resolution, winners split the opposing pool proportionally, minus a 2% fee. Bet records are private Aleo records — the chain reveals pool totals but not who bet on which side.
+Users bet on binary (YES/NO) outcomes. Credits are pooled per side. After resolution, winners split the opposing pool proportionally, minus a 2% fee. Bet records are encrypted Aleo records — the chain reveals bet direction, amount, and pool totals, but not which wallet placed a given bet.
 
 The contract is deployed on Aleo Testnet Beta as `prediction_market_test004.aleo`. It depends on `credits.aleo` for native credit transfers and `official_oracle_v2.aleo` for attested data feeds.
 
@@ -75,14 +75,18 @@ The frontend generates ZK proofs client-side via `@provablehq/sdk` WASM workers.
 | Market existence, status, outcome | Public | On-chain mappings |
 | Pool totals (YES/NO aggregate) | Public | On-chain mappings |
 | Market end time, creator address | Public | On-chain mappings |
-| Bet direction (YES or NO) | **Private** | Aleo record (owner only) |
-| Bettor identity | **Private** | Aleo record (owner only) |
-| Individual bet amount | **Public** | On-chain (transition input) |
+| Bet direction (YES or NO) | **Public** | Finalize arguments (on-chain) |
+| Individual bet amount | **Public** | Transition input (on-chain) |
+| Bettor identity (wallet address) | **Private** | Not in finalize args; encrypted in Bet record |
 | Payout amount per user | **Private until claim** | Revealed at claim time |
 
-Pool totals are public because parimutuel payout calculation requires them. When a user places a bet, the aggregate pool for one side increases, but the chain does not record which address caused the increase. The `Bet` record is stored encrypted on-chain; only the record owner can decrypt it.
+**What is private**: The bettor's wallet address is never linked to a bet in finalize arguments or public mappings. An observer can see "someone bet YES with 10,000 microcredits on market 3" but cannot determine which address placed it. The `Bet` record containing the owner address is stored encrypted on-chain; only the record owner can decrypt it.
 
-**Limitation**: Because pool updates happen in the finalize block, an observer watching pool deltas at the block level could infer bet direction from timing. This is an accepted tradeoff for the current design. Commit-reveal patterns could mitigate this in a future version.
+**What is public**: Bet direction is passed to the finalize block (which updates either `yes_pool` or `no_pool`), so it appears in plaintext in the transaction's future output. Bet amount is a public transition input. This is an inherent constraint — finalize arguments on Aleo are always public.
+
+**Why this matters**: On EVM prediction markets, every trade is linked to a wallet address. Participants can be identified, front-run, and profiled. On Aleo, the identity link is broken — you cannot build a profile of who bet what. The privacy guarantee is **anonymity**, not bet secrecy.
+
+**Limitation**: A commit-reveal pattern could also hide bet direction by batching reveals, breaking timing correlation between individual bets and pool changes. This is planned for a future version.
 
 ### 2.2 Parimutuel Mechanics
 
@@ -227,7 +231,7 @@ A `Bet` record is created by `place_bet` or `add_to_bet`, and consumed (spent) b
 
 | Transition | Privacy | Description |
 |-----------|---------|-------------|
-| `place_bet(market_id, outcome, amount)` | outcome is **private** | Place a new bet. Returns a `Bet` record. Transfers credits via `credits.aleo/transfer_public_as_signer`. |
+| `place_bet(market_id, outcome, amount)` | bettor identity is **private** | Place a new bet. Returns a `Bet` record. Outcome is a private transition input but becomes public in finalize args. Transfers credits via `credits.aleo/transfer_public_as_signer`. |
 | `add_to_bet(existing_bet, additional_amount)` | bet record is **private** | Consolidate additional funds into an existing bet. Consumes old record, returns new one with combined amount. |
 | `claim_winnings(bet, claimed_amount)` | bet record is **private** | Claim payout after resolution. Contract verifies the claimed amount. Consumes the record. |
 | `claim_refund(bet)` | bet record is **private** | Full refund for cancelled markets. Consumes the record. |

@@ -39,7 +39,7 @@ export function HeroSection() {
 
             <p className="hero-subtitle text-gray-400 text-base sm:text-lg leading-relaxed mb-6 sm:mb-10 max-w-md">
               A prediction market on Aleo where zero-knowledge proofs keep your
-              positions hidden while pools stay transparent.
+              identity hidden while pools stay transparent.
             </p>
 
             <div className="flex flex-wrap gap-2 sm:gap-3">
@@ -47,7 +47,7 @@ export function HeroSection() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                 </svg>
-                Private Bets
+                Anonymous Bets
               </span>
               <span className="hero-pill inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm bg-navy-800 border-2 border-navy-600 rounded-md px-3 sm:px-4 py-2 sm:py-2.5 text-gray-300 font-medium">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
@@ -81,9 +81,9 @@ export function HeroSection() {
 
               {/* Rows */}
               {([
-                ["Bet direction", true, false],
+                ["Bettor identity", true, false],
+                ["Bet direction", true, true],
                 ["Bet amount", true, true],
-                ["Wallet link", true, false],
                 ["Pool totals", true, true],
                 ["Market outcome", true, true],
               ] as const).map(([label, otherVisible, thisVisible]) => (
@@ -134,8 +134,8 @@ export function HeroSection() {
 
             <div className="mt-4 sm:mt-5 pt-3 sm:pt-4 border-t-2 border-navy-600 text-center">
               <p className="text-[11px] sm:text-xs text-gray-500">
-                Bet positions are encrypted as Aleo records. Only aggregate pool
-                totals are public.
+                Your wallet address is never linked to your bet on-chain.
+                Bet direction and amount are public; bettor identity is not.
               </p>
             </div>
           </div>

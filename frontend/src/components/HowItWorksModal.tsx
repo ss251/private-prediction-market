@@ -15,7 +15,7 @@ const slides = [
     description:
       "Browse prediction markets and choose Yes or No based on what you think will happen. Odds shift as others bet.",
     privacy:
-      "On Aleo, your bet direction is encrypted — no one can see which side you picked.",
+      "On Aleo, your wallet address is never linked to your bet — no one can see who placed it.",
     icon: (
       <div className="flex gap-3 items-center justify-center">
         <div className="glass-card px-5 py-4 flex flex-col items-center gap-2 w-28">
@@ -31,11 +31,11 @@ const slides = [
   },
   {
     step: "2",
-    title: "Place a Private Bet",
+    title: "Place an Anonymous Bet",
     description:
       "Bet with Aleo credits. Your transaction generates a zero-knowledge proof — so only aggregate pool totals are public.",
     privacy:
-      "Your bet direction and wallet identity stay hidden from everyone. Only the amount and pool totals are public.",
+      "Your wallet identity stays hidden — no one can link your address to a bet. Direction and amount are visible, but not who placed it.",
     icon: (
       <div className="flex flex-col items-center gap-3">
         <div className="glass-card px-6 py-4 flex flex-col items-center gap-1 relative">

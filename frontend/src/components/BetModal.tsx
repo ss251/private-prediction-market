@@ -258,8 +258,8 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
             <span>
-              Your bet is private — direction and identity are encrypted
-              as Aleo records. Bet amount and pool totals are public.
+              Your bet is anonymous — your wallet address is never linked to
+              the bet on-chain. Direction, amount, and pool totals are public.
             </span>
           </div>
 

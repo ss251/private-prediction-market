@@ -81,7 +81,7 @@ export function TransactionProgress({
       {/* Explanation */}
       {state === "proving" && (
         <p className="text-xs text-gray-500">
-          ZK proofs ensure your bet remains private. This computation runs
+          ZK proofs ensure your bet remains anonymous. This computation runs
           locally on your device.
         </p>
       )}
