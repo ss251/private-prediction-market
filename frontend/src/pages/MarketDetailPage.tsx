@@ -255,12 +255,12 @@ export function MarketDetailPage() {
               </svg>
               <div className="space-y-2">
                 <p className="text-sm text-gray-300">
-                  All bets in this market are private. Bet direction and wallet
-                  identity are encrypted as Aleo records. Bet amount is public.
+                  All bets in this market are anonymous. Your wallet address is
+                  never linked to a bet on-chain. Direction and amount are public.
                 </p>
                 <p className="text-xs text-gray-500">
-                  Only aggregate pool totals and market outcomes are public. Your position
-                  is only visible to you through your wallet.
+                  Pool totals, bet direction, and outcomes are public. Your identity
+                  as a bettor is private — only you can prove you placed a bet via your encrypted record.
                 </p>
               </div>
             </div>
