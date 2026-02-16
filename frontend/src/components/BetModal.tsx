@@ -4,6 +4,8 @@ import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import { getPublicBalance, formatCredits, PROGRAM_ID } from "../lib/aleo";
 import { useBetRecords } from "../hooks/useBetRecords";
+import { upsertUserPosition } from "../lib/supabase";
+import { saveLocalPosition } from "../lib/localPositions";
 
 interface Market {
   id: string;
@@ -21,6 +23,11 @@ interface BetModalProps {
   initialOutcome?: "yes" | "no";
 }
 
+/**
+ * Modal for placing or adding to a bet on a prediction market.
+ * Supports both `place_bet` (new position) and `add_to_bet` (existing position).
+ * Displays current odds, potential winnings, and handles the full transaction lifecycle.
+ */
 export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome }: BetModalProps) {
   const { address, executeTransaction, transactionStatus } = useWallet();
   const [outcome, setOutcome] = useState<"yes" | "no">(initialOutcome ?? "yes");
@@ -93,8 +100,19 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
       { statusFn: (txId: string) => transactionStatus(txId).then(r => r.status) }
     );
 
-    if (resultTxId && onBetPlaced) {
-      onBetPlaced();
+    if (resultTxId && address) {
+      const isYes = outcome === "yes";
+      // Save to Supabase (non-blocking)
+      upsertUserPosition(address, market.id, isYes, amountMicrocredits).catch(() => {});
+      // Also save to localStorage as fallback
+      saveLocalPosition({
+        marketId: market.id,
+        outcome: isYes,
+        amount: amountMicrocredits,
+        txId: resultTxId,
+        timestamp: Date.now(),
+      });
+      if (onBetPlaced) onBetPlaced();
     }
   };
 

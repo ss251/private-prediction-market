@@ -15,6 +15,11 @@ interface ResolveModalProps {
   onResolved?: () => void;
 }
 
+/**
+ * Modal for resolving a closed market by selecting the winning outcome.
+ * Calls the `resolve_market` on-chain transition. Only the contract admin
+ * can successfully execute this action.
+ */
 export function ResolveModal({
   marketId,
   question,
@@ -30,7 +35,7 @@ export function ResolveModal({
 
   const [outcome, setOutcome] = useState<boolean>(true);
 
-  if (!isOpen) return null;
+  if (!isOpen || !address || !transactionStatus) return null;
 
   const totalPool = yesPool + noPool;
 

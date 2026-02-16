@@ -31,6 +31,11 @@ const statusConfig = {
   cancelled: { label: "CANCELLED", dot: "bg-rose-400", text: "text-rose-400", bg: "bg-rose-500/10", border: "border-rose-500/20" },
 } as const;
 
+/**
+ * Card component for displaying a single prediction market.
+ * Shows question, probability bars, pool size, status badge, and action buttons
+ * (bet, claim, refund, resolve) based on market state and wallet connection.
+ */
 export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPosition }: MarketCardProps) {
   const { connected } = useWallet();
   const totalPool = market.yesPool + market.noPool;

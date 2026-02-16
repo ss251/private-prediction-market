@@ -166,6 +166,11 @@ type Phase =
   | "creating"
   | "success";
 
+/**
+ * Admin-only modal for creating new prediction markets on-chain.
+ * Handles market ID allocation, block height estimation for end dates,
+ * and persists metadata to both localStorage and Supabase.
+ */
 export function CreateMarketModal({
   isOpen,
   onClose,

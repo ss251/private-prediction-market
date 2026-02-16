@@ -21,6 +21,11 @@ import { useMarkets, type DisplayMarket } from "../hooks/useMarkets";
 
 type ModalType = "bet" | "claim" | "refund" | "resolve" | "create";
 
+/**
+ * Main market listing component. Fetches markets from Supabase (with chain fallback),
+ * manages user positions, and renders MarketCards in an animated grid.
+ * Handles modal orchestration for bet/claim/refund/resolve/create actions.
+ */
 export function MarketList() {
   const { connected } = useWallet();
   const [selectedMarket, setSelectedMarket] = useState<DisplayMarket | null>(

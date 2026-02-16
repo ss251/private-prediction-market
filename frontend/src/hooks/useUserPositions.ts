@@ -1,86 +1,76 @@
-// Position tracking from wallet Bet records (private, not public mappings)
-//
-// IMPORTANT: requestRecords() triggers a wallet approval popup every time.
-// This hook must NEVER run automatically. Callers use refetch() explicitly
-// after user-initiated actions (bet placed, claim, refund, modal open).
-import { useCallback, useState } from "react";
+/**
+ * User position tracking via Supabase indexed positions.
+ *
+ * Positions are stored in the `user_positions` table and updated when
+ * bets are placed. No wallet popup or `requestRecords()` needed.
+ * Falls back to localStorage positions if Supabase is unavailable.
+ * @module
+ */
+import { useCallback, useState, useEffect } from "react";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
-import { PROGRAM_ID } from "../lib/aleo";
+import { fetchUserPositions } from "../lib/supabase";
+import { getLocalPositionsForMarkets } from "../lib/localPositions";
 
+/** Aggregated position for a single market. */
 export interface OnChainPosition {
   marketId: string;
   yesAmount: bigint;
   noAmount: bigint;
 }
 
-interface RawRecord {
-  owner?: string;
-  market_id?: string;
-  outcome?: string;
-  amount?: string;
-  _nonce?: string;
-}
-
-function parseRecords(rawRecords: unknown[]): OnChainPosition[] {
-  const byMarket = new Map<string, { yes: bigint; no: bigint }>();
-
-  for (const rec of rawRecords) {
-    try {
-      const data = rec as RawRecord;
-      if (!data.market_id || !data.amount) continue;
-
-      // Normalize market_id: strip "field" suffix for consistent matching
-      const marketId = String(data.market_id).replace(/field$/, "");
-      const outcome = String(data.outcome) === "true";
-      const amountStr = String(data.amount).replace(/u64$/, "");
-      const amount = BigInt(amountStr);
-
-      const existing = byMarket.get(marketId) ?? { yes: 0n, no: 0n };
-      if (outcome) {
-        existing.yes += amount;
-      } else {
-        existing.no += amount;
-      }
-      byMarket.set(marketId, existing);
-    } catch {
-      continue;
-    }
-  }
-
-  return Array.from(byMarket.entries()).map(([marketId, amounts]) => ({
-    marketId,
-    yesAmount: amounts.yes,
-    noAmount: amounts.no,
-  }));
-}
-
 /**
- * Returns user positions from wallet records.
- * Does NOT fetch automatically — call `refetch()` explicitly when needed.
+ * Returns user positions from Supabase (instant, no popup).
+ * Falls back to localStorage if Supabase is unavailable.
+ * Call `refetch()` to re-query after placing a bet.
  */
 export function useUserPositions(marketIds: string[]) {
-  const { address, requestRecords } = useWallet();
+  const { address } = useWallet();
   const [data, setData] = useState<OnChainPosition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
 
-  const refetch = useCallback(async () => {
-    if (!address || !requestRecords || marketIds.length === 0) {
+  const fetchPositions = useCallback(async () => {
+    if (!address || marketIds.length === 0) {
       setData([]);
+      setHasFetched(true);
       return;
     }
 
     setIsLoading(true);
     try {
-      const rawRecords = await requestRecords(PROGRAM_ID);
-      const positions = parseRecords(rawRecords as unknown[]);
-      const normalizedIds = marketIds.map(id => id.replace(/field$/, ""));
-      setData(positions.filter((p) => normalizedIds.includes(p.marketId)));
+      const supabasePositions = await fetchUserPositions(address, marketIds);
+
+      if (supabasePositions.length > 0) {
+        setData(
+          supabasePositions.map((p) => ({
+            marketId: p.marketId,
+            yesAmount: BigInt(p.yesAmount),
+            noAmount: BigInt(p.noAmount),
+          }))
+        );
+      } else {
+        // Fallback to localStorage
+        const local = getLocalPositionsForMarkets(marketIds);
+        setData(local);
+      }
     } catch {
-      // User rejected or wallet error — keep existing data
+      // Supabase unavailable — fallback to localStorage
+      const local = getLocalPositionsForMarkets(marketIds);
+      setData(local);
     } finally {
       setIsLoading(false);
+      setHasFetched(true);
     }
-  }, [address, requestRecords, marketIds]);
+  }, [address, marketIds]);
 
-  return { data, isLoading, refetch };
+  useEffect(() => {
+    fetchPositions();
+  }, [fetchPositions]);
+
+  /** Re-fetch positions (e.g., after placing a bet). */
+  const refetch = useCallback(async () => {
+    await fetchPositions();
+  }, [fetchPositions]);
+
+  return { data, isLoading, hasFetched, refetch };
 }

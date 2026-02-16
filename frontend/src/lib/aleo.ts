@@ -1,9 +1,15 @@
-// Network client for querying Aleo chain state
+/**
+ * Network client for querying Aleo chain state.
+ * Provides helpers for fetching market data, pool sizes, balances,
+ * transaction status, and payout calculations from the Aleo testnet API.
+ * @module
+ */
 
 const API_URL = "https://api.explorer.provable.com/v1/testnet";
+/** Deployed prediction market program ID on Aleo testnet. */
 export const PROGRAM_ID = "prediction_market_test004.aleo";
 
-// Market status constants (matches contract)
+/** Market status constants matching the on-chain contract values. */
 export const MarketStatus = {
   OPEN: 0,
   CLOSED: 1,
@@ -11,8 +17,10 @@ export const MarketStatus = {
   CANCELLED: 3,
 } as const;
 
+/** Union type of market status numeric values (0–3). */
 export type MarketStatus = (typeof MarketStatus)[keyof typeof MarketStatus];
 
+/** On-chain market state fetched from Aleo explorer API. */
 export interface MarketData {
   id: string;
   status: MarketStatus;
@@ -68,7 +76,7 @@ function parseAleoField(value: string | null): string | undefined {
   return value.replace(/field$/, "");
 }
 
-// Fetch a mapping value from the network
+/** Fetch a single mapping value from an on-chain program mapping. */
 export async function getMappingValue(
   mapping: string,
   key: string
@@ -90,7 +98,7 @@ export async function getMappingValue(
   }
 }
 
-// Get market data from chain (including new metadata)
+/** Fetch comprehensive market data from chain including pools, status, oracle config, and metadata. */
 export async function getMarketData(marketId: string): Promise<MarketData | null> {
   try {
     const [
@@ -150,13 +158,13 @@ export async function getMarketData(marketId: string): Promise<MarketData | null
   }
 }
 
-// Get multiple markets
+/** Fetch data for multiple markets in parallel. */
 export async function getMarkets(marketIds: string[]): Promise<MarketData[]> {
   const results = await Promise.all(marketIds.map(getMarketData));
   return results.filter((m): m is MarketData => m !== null);
 }
 
-// Discover all market IDs from on-chain registry
+/** Discover all market IDs from the on-chain registry (market_count + market_ids mappings). */
 export async function getAllMarketIds(): Promise<string[]> {
   const countRaw = await getMappingValue("market_count", "true");
   if (!countRaw || countRaw === "null") return [];
@@ -184,7 +192,7 @@ export async function getAllMarketIds(): Promise<string[]> {
   return ids;
 }
 
-// Get market metadata (convenience wrapper for new fields)
+/** Get market metadata (end time, pause state, creator, label hashes). */
 export async function getMarketMetadata(marketId: string): Promise<{
   endTime?: number;
   paused: boolean;
@@ -203,7 +211,7 @@ export async function getMarketMetadata(marketId: string): Promise<{
   };
 }
 
-// Check if a market's betting deadline has passed
+/** Check if a market's betting deadline (end block) has passed. */
 export async function isMarketExpired(marketId: string): Promise<boolean> {
   const [endTimeRaw, currentHeight] = await Promise.all([
     getMappingValue("market_end_time", marketId),
@@ -214,7 +222,7 @@ export async function isMarketExpired(marketId: string): Promise<boolean> {
   return currentHeight >= endTime;
 }
 
-// Get public balance for an address (queries credits.aleo account mapping)
+/** Get public credit balance for an Aleo address. */
 export async function getPublicBalance(address: string): Promise<bigint> {
   try {
     const response = await fetch(
@@ -230,7 +238,7 @@ export async function getPublicBalance(address: string): Promise<bigint> {
   }
 }
 
-// Get transaction status
+/** Get the finalization status of a transaction by ID. */
 export async function getTransactionStatus(
   txId: string
 ): Promise<"Pending" | "Finalized" | "Failed" | "Unknown"> {
@@ -251,7 +259,7 @@ export async function getTransactionStatus(
   }
 }
 
-// Poll for transaction confirmation
+/** Poll for transaction confirmation with configurable attempts and interval. */
 export async function waitForConfirmation(
   txId: string,
   maxAttempts = 60,
@@ -266,7 +274,7 @@ export async function waitForConfirmation(
   return false;
 }
 
-// Get latest block height
+/** Get the latest block height from the Aleo testnet. */
 export async function getLatestHeight(): Promise<number> {
   try {
     const response = await fetch(`${API_URL}/latest/height`);
@@ -277,11 +285,10 @@ export async function getLatestHeight(): Promise<number> {
   }
 }
 
-// Oracle constants
+/** Oracle program ID for on-chain price attestation. */
 export const ORACLE_PROGRAM_ID = "official_oracle_v2.aleo";
 
-// Check if oracle outcome is available on-chain for a given event/market ID
-// Check if oracle data is available on-chain for a given request hash
+/** Check if oracle attested data is available on-chain for a given request hash. */
 export async function getOracleAttestedData(
   requestHash: bigint
 ): Promise<{ data: bigint; timestamp: bigint } | null> {
@@ -305,7 +312,7 @@ export async function getOracleAttestedData(
   }
 }
 
-// Calculate payout for a winning bet
+/** Calculate payout for a winning bet after the 2% fee deduction. */
 export function calculatePayout(
   betAmount: bigint,
   yesPool: bigint,
@@ -326,7 +333,7 @@ export function calculatePayout(
   return (betAmount * netPool) / winningPool;
 }
 
-// Format microcredits to credits string
+/** Format microcredits (bigint) to a human-readable credits string. */
 export function formatCredits(microcredits: bigint): string {
   const credits = Number(microcredits) / 1_000_000;
   return credits.toLocaleString(undefined, {
@@ -335,7 +342,7 @@ export function formatCredits(microcredits: bigint): string {
   });
 }
 
-// Format pool value for display
+/** Format pool value for compact display (e.g., "1.2k credits"). */
 export function formatPool(microcredits: bigint): string {
   if (microcredits === 0n) return "0";
   const credits = Number(microcredits) / 1_000_000;
@@ -345,7 +352,7 @@ export function formatPool(microcredits: bigint): string {
   return credits.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-// Check if the deployed contract supports oracle mappings
+/** Check if the deployed contract supports oracle-based resolution. */
 export async function contractSupportsOracle(): Promise<boolean> {
   try {
     const response = await fetch(
@@ -359,24 +366,24 @@ export async function contractSupportsOracle(): Promise<boolean> {
   }
 }
 
-// Get admin address from the on-chain admin mapping (singleton: true => address)
+/** Get the admin address from the on-chain admin mapping. */
 export async function getAdminAddress(): Promise<string | null> {
   const raw = await getMappingValue("admin", "true");
   if (!raw || raw === "null") return null;
   return parseAleoAddress(raw) ?? null;
 }
 
-// Get the current market count from on-chain registry
+/** Get the total number of markets created from the on-chain registry. */
 export async function getMarketCount(): Promise<number> {
   const raw = await getMappingValue("market_count", "true");
   if (!raw || raw === "null") return 0;
   return Number(parseAleoValue(raw));
 }
 
-// Estimate a future block height for a target date.
-// Aleo produces ~1 block per 5 seconds (12 blocks/min).
+/** Aleo block time in seconds (~5s per block). */
 const ALEO_BLOCK_TIME_SECONDS = 5;
 
+/** Estimate a future block height for a given target date based on current height. */
 export async function estimateBlockHeight(targetDate: Date): Promise<number> {
   const currentHeight = await getLatestHeight();
   const now = Date.now();

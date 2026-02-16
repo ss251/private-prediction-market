@@ -67,6 +67,19 @@ export const platformStats = pgTable("platform_stats", {
   lastIndexedAt: timestamp("last_indexed_at"),
 });
 
+// --- User positions (indexed from on-chain bet transactions) ---
+export const userPositions = pgTable("user_positions", {
+  id: serial("id").primaryKey(),
+  walletAddress: text("wallet_address").notNull(),
+  marketId: text("market_id").notNull().references(() => markets.marketId),
+  yesAmount: bigint("yes_amount", { mode: "number" }).default(0),
+  noAmount: bigint("no_amount", { mode: "number" }).default(0),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_user_positions_wallet").on(table.walletAddress),
+  index("idx_user_positions_market").on(table.marketId),
+]);
+
 // --- Indexer cursor ---
 export const indexerState = pgTable("indexer_state", {
   id: boolean("id").primaryKey().default(true),

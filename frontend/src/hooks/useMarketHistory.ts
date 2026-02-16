@@ -4,11 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { getMarketData, PROGRAM_ID, type MarketData } from "../lib/aleo";
 
+/** A user's aggregated bet position in a single market. */
 export interface UserPosition {
   yesAmount: bigint;
   noAmount: bigint;
 }
 
+/** Combined market chain data and user position returned by useMarketHistory. */
 export interface MarketHistoryData {
   userPosition: UserPosition | null;
   marketData: MarketData | null;
@@ -16,6 +18,10 @@ export interface MarketHistoryData {
   error: Error | null;
 }
 
+/**
+ * Fetches on-chain market data and the connected user's bet position.
+ * Re-fetches when the market ID or wallet address changes.
+ */
 export function useMarketHistory(
   marketId: string,
   userAddress: string | null,

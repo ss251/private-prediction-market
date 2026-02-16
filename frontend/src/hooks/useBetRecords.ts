@@ -41,6 +41,11 @@ function parseRawRecord(raw: Record<string, unknown>): BetRecord | null {
   }
 }
 
+/**
+ * Hook for fetching and parsing private Bet records from the connected wallet.
+ * Used at claim/refund time to obtain the encrypted record required by
+ * `claim_winnings` and `claim_refund` transitions.
+ */
 export function useBetRecords() {
   const { requestRecords } = useWallet();
   const [loading, setLoading] = useState(false);

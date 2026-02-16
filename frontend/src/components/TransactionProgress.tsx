@@ -8,6 +8,11 @@ interface TransactionProgressProps {
   error?: string | null;
 }
 
+/**
+ * Displays real-time transaction progress including ZK proof generation,
+ * broadcasting, and on-chain confirmation stages. Shows elapsed time,
+ * progress bar, transaction ID with explorer link, and error messages.
+ */
 export function TransactionProgress({
   state,
   elapsed,

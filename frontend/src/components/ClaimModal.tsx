@@ -18,6 +18,11 @@ interface ClaimModalProps {
   onClaimed?: () => void;
 }
 
+/**
+ * Modal for claiming winnings from a resolved market.
+ * Calculates the payout based on pool sizes and the user's winning position,
+ * then submits a `claim_winnings` transaction with the private Bet record.
+ */
 export function ClaimModal({
   marketId,
   question,

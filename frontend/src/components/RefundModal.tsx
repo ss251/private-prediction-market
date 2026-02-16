@@ -15,6 +15,11 @@ interface RefundModalProps {
   onRefunded?: () => void;
 }
 
+/**
+ * Modal for claiming refunds on cancelled markets.
+ * Fetches the user's private Bet record from the wallet and submits a
+ * `claim_refund` transaction to return the full bet amount (no fees).
+ */
 export function RefundModal({
   marketId,
   question,
@@ -29,7 +34,7 @@ export function RefundModal({
   const { fetchBetRecords, loading: recordsLoading } = useBetRecords();
   const [recordError, setRecordError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  if (!isOpen || !address || !transactionStatus) return null;
 
   const yesAmount = userPosition?.yesAmount ?? 0n;
   const noAmount = userPosition?.noAmount ?? 0n;

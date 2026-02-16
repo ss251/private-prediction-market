@@ -82,6 +82,10 @@ async function fetchMarketsFromChain(): Promise<DisplayMarket[]> {
   });
 }
 
+/**
+ * Hook for fetching all markets with Supabase-first strategy and chain fallback.
+ * Subscribes to Supabase Realtime for live updates to market rows.
+ */
 export function useMarkets() {
   const queryClient = useQueryClient();
 

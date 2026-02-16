@@ -5,6 +5,10 @@ interface HeaderProps {
   onHowItWorks?: () => void;
 }
 
+/**
+ * Application header with branding, wallet connection status, and navigation.
+ * Integrates the Shield Wallet multi-button for wallet connect/disconnect.
+ */
 export function Header({ onHowItWorks }: HeaderProps) {
   const { connected, address, connecting } = useWallet();
 

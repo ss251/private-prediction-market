@@ -14,14 +14,20 @@ import {
   MarketStatus,
   getMarketData,
   type MarketData,
+  getLatestHeight,
+  getMappingValue,
 } from "../lib/aleo";
+import { PoolHistoryChart } from "../components/PoolHistoryChart";
+import { CommitBetModal } from "../components/CommitBetModal";
+import { RevealBetModal } from "../components/RevealBetModal";
+import { CommitRevealStatus } from "../components/CommitRevealStatus";
 import { useMarkets, type DisplayMarket } from "../hooks/useMarkets";
 import {
   useUserPositions,
   type OnChainPosition,
 } from "../hooks/useUserPositions";
 
-type ModalType = "bet" | "claim" | "refund" | "resolve";
+type ModalType = "bet" | "claim" | "refund" | "resolve" | "commit" | "reveal";
 
 const STATUS_TO_NUM: Record<string, (typeof MarketStatus)[keyof typeof MarketStatus]> = {
   open: MarketStatus.OPEN,
@@ -42,6 +48,11 @@ function displayToMarketData(dm: DisplayMarket): MarketData {
   };
 }
 
+/**
+ * Detail page for a single prediction market. Displays probability bars,
+ * pool sizes, market info, privacy disclosure, user positions, and action
+ * buttons. Fetches both cached Supabase data and precise on-chain state.
+ */
 export function MarketDetailPage() {
   const { marketId } = useParams<{ marketId: string }>();
   const { connected } = useWallet();
@@ -65,8 +76,8 @@ export function MarketDetailPage() {
     staleTime: 60_000,
   });
 
-  // User positions
-  const { data: positions = [], refetch: refetchPositions } = useUserPositions(
+  // User positions (auto-fetches on mount)
+  const { data: positions = [], isLoading: positionsLoading, hasFetched: positionsFetched, refetch: refetchPositions } = useUserPositions(
     marketId ? [marketId] : []
   );
   const userPosition: OnChainPosition | null =
@@ -74,6 +85,24 @@ export function MarketDetailPage() {
 
   // Use chain data when available, otherwise fall back to display data
   const effectiveChainData = chainData ?? (market ? displayToMarketData(market) : null);
+
+  // Commit-reveal phase data
+  const { data: commitRevealData } = useQuery({
+    queryKey: ["commitReveal", marketId],
+    queryFn: async () => {
+      if (!marketId) return null;
+      const [enabledRaw, deadlineRaw, currentHeight] = await Promise.all([
+        getMappingValue("commit_reveal_enabled", marketId),
+        getMappingValue("reveal_deadline", marketId),
+        getLatestHeight(),
+      ]);
+      const enabled = enabledRaw === "true";
+      const revealDeadline = deadlineRaw ? parseInt(deadlineRaw.replace(/u\d+$/, "")) : undefined;
+      return { enabled, revealDeadline, currentBlock: currentHeight };
+    },
+    enabled: !!marketId,
+    staleTime: 30_000,
+  });
 
   // GSAP entrance animation
   useGSAP(() => {
@@ -203,6 +232,14 @@ export function MarketDetailPage() {
             </div>
           </div>
 
+          {/* Pool History Chart */}
+          <div className="detail-section glass-card p-4 sm:p-6">
+            <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 sm:mb-4">
+              Probability Over Time
+            </h2>
+            <PoolHistoryChart marketId={marketId} />
+          </div>
+
           {/* Resolved outcome banner */}
           {isResolved && market.outcome !== undefined && (
             <div className={`detail-section py-4 px-5 rounded-md text-center font-bold border-2 ${
@@ -246,24 +283,16 @@ export function MarketDetailPage() {
             </div>
           </div>
 
-          {/* Privacy Notice */}
+          {/* Privacy Disclosure */}
           <div className="detail-section glass-card p-4 sm:p-6">
-            <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 sm:mb-4">Bet Privacy</h2>
-            <div className="flex items-start gap-3">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-              <div className="space-y-2">
-                <p className="text-sm text-gray-300">
-                  All bets in this market are anonymous. Your wallet address is
-                  never linked to a bet on-chain. Direction and amount are public.
-                </p>
-                <p className="text-xs text-gray-500">
-                  Pool totals, bet direction, and outcomes are public. Your identity
-                  as a bettor is private — only you can prove you placed a bet via your encrypted record.
-                </p>
-              </div>
-            </div>
+            <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 sm:mb-4">
+              <span className="flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D4A054" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                Privacy Disclosure
+              </span>
+            </h2>
           </div>
         </div>
 
@@ -299,6 +328,38 @@ export function MarketDetailPage() {
                 </svg>
                 Your bet is encrypted via ZK proof
               </div>
+
+              {/* Commit-reveal option */}
+              <div className="mt-3 pt-3 border-t border-navy-600">
+                <p className="text-[11px] text-gray-500 mb-2">
+                  Or use commit-reveal for extra privacy:
+                </p>
+                <button
+                  onClick={() => setActiveModal("commit")}
+                  className="w-full py-2 rounded-md bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:border-violet-500/40 text-sm font-bold transition-colors"
+                >
+                  🔒 Private Commit Bet
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Reveal phase button */}
+          {connected && commitRevealData?.enabled && market.status === "closed" && (
+            <div className="detail-section glass-card p-4 sm:p-5">
+              <CommitRevealStatus
+                commitRevealEnabled={true}
+                marketStatus="closed"
+                revealDeadline={commitRevealData.revealDeadline}
+                currentBlock={commitRevealData.currentBlock}
+                endBlock={market.endTime}
+              />
+              <button
+                onClick={() => setActiveModal("reveal")}
+                className="w-full mt-3 py-3 rounded-md bg-amber-500/10 text-amber-400 border-2 border-amber-500/20 hover:border-amber-500/40 text-sm font-bold transition-colors"
+              >
+                🔓 Reveal Committed Bets
+              </button>
             </div>
           )}
 
@@ -366,7 +427,21 @@ export function MarketDetailPage() {
           {connected && (
             <div className="detail-section glass-card p-4 sm:p-5">
               <h3 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 sm:mb-4">Your Position</h3>
-              {userPosition ? (
+              {positionsLoading ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="text-center py-3 rounded-md bg-navy-900 border-2 border-navy-600 animate-pulse">
+                      <div className="text-xs text-gray-500 mb-1">YES</div>
+                      <div className="h-6 bg-navy-700 rounded mx-4" />
+                    </div>
+                    <div className="text-center py-3 rounded-md bg-navy-900 border-2 border-navy-600 animate-pulse">
+                      <div className="text-xs text-gray-500 mb-1">NO</div>
+                      <div className="h-6 bg-navy-700 rounded mx-4" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-600 text-center">Loading positions from wallet…</p>
+                </div>
+              ) : userPosition ? (
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="text-center py-3 rounded-md bg-navy-900 border-2 border-navy-600">
@@ -396,7 +471,9 @@ export function MarketDetailPage() {
                   )}
                 </div>
               ) : (
-                <p className="text-sm text-gray-500 text-center">No position in this market.</p>
+                <p className="text-sm text-gray-500 text-center">
+                  {positionsFetched ? "No position in this market." : "Connect wallet to view positions."}
+                </p>
               )}
             </div>
           )}
@@ -454,6 +531,25 @@ export function MarketDetailPage() {
             refetch();
             refetchPositions();
           }}
+        />
+      )}
+
+      {activeModal === "commit" && (
+        <CommitBetModal
+          market={market}
+          isOpen={true}
+          onClose={handleModalClose}
+          onCommitted={() => refetchPositions()}
+        />
+      )}
+
+      {activeModal === "reveal" && (
+        <RevealBetModal
+          marketId={market.id}
+          question={market.question}
+          isOpen={true}
+          onClose={handleModalClose}
+          onRevealed={() => refetchPositions()}
         />
       )}
     </div>

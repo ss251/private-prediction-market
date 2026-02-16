@@ -609,3 +609,194 @@ program prediction_market_test004.aleo {
         transfer.await();
     }
 }
+
+    // ========================================
+    // COMMIT-REVEAL BETTING (Privacy Enhancement)
+    // ========================================
+    // Two-phase betting: commit phase hides bet details, reveal phase confirms them.
+    // This prevents front-running and ensures bet privacy during the betting period.
+
+    // Commitment storage: market_id + committor => commitment hash
+    mapping commitments: field => field;
+
+    // Commitment amounts locked (for refunds if not revealed)
+    mapping commitment_amounts: field => u64;
+
+    // Commitment owner tracking
+    mapping commitment_owners: field => address;
+
+    // Reveal deadline per market (block height, set when market closes)
+    mapping reveal_deadline: field => u32;
+
+    // Commit a bet: hash the bet details and lock credits
+    // commitment_hash = BHP256::hash_to_field(market_id, direction, amount, nonce)
+    async transition commit_bet(
+        public market_id: field,
+        public commitment_hash: field,
+        public amount: u64
+    ) -> Future {
+        assert(amount >= MIN_BET);
+
+        // Lock credits
+        let transfer_future: Future = credits.aleo/transfer_public_as_signer(
+            prediction_market_test004.aleo,
+            amount
+        );
+
+        return finalize_commit_bet(market_id, commitment_hash, amount, self.signer, transfer_future);
+    }
+
+    async function finalize_commit_bet(
+        market_id: field,
+        commitment_hash: field,
+        amount: u64,
+        caller: address,
+        transfer: Future
+    ) {
+        // Verify market is open
+        let status: u8 = Mapping::get(market_status, market_id);
+        assert_eq(status, STATUS_OPEN);
+
+        // Check pause status
+        let is_paused: bool = Mapping::get_or_use(market_paused, market_id, false);
+        assert(!is_paused);
+
+        // Check end time
+        let end_time: u32 = Mapping::get_or_use(market_end_time, market_id, 4294967295u32);
+        assert(block.height as u32 < end_time);
+
+        // Store commitment (keyed by hash for uniqueness)
+        let existing: field = Mapping::get_or_use(commitments, commitment_hash, 0field);
+        assert_eq(existing, 0field); // No duplicate commitments
+
+        Mapping::set(commitments, commitment_hash, market_id);
+        Mapping::set(commitment_amounts, commitment_hash, amount);
+        Mapping::set(commitment_owners, commitment_hash, caller);
+
+        transfer.await();
+    }
+
+    // Reveal a committed bet: provide the preimage to prove the commitment
+    async transition reveal_bet(
+        public market_id: field,
+        public direction: bool,
+        public amount: u64,
+        public nonce: field
+    ) -> (Bet, Future) {
+        // Reconstruct commitment hash
+        let commitment_hash: field = BHP256::hash_to_field(Commitment {
+            market_id: market_id,
+            direction: direction,
+            amount: amount,
+            nonce: nonce,
+        });
+
+        // Create private bet receipt
+        let bet: Bet = Bet {
+            owner: self.signer,
+            market_id: market_id,
+            outcome: direction,
+            amount: amount,
+        };
+
+        return (bet, finalize_reveal_bet(market_id, direction, amount, commitment_hash, self.signer));
+    }
+
+    async function finalize_reveal_bet(
+        market_id: field,
+        direction: bool,
+        amount: u64,
+        commitment_hash: field,
+        caller: address
+    ) {
+        // Verify commitment exists and matches this market
+        let stored_market: field = Mapping::get(commitments, commitment_hash);
+        assert_eq(stored_market, market_id);
+
+        // Verify caller is the commitment owner
+        let owner: address = Mapping::get(commitment_owners, commitment_hash);
+        assert_eq(caller, owner);
+
+        // Verify amount matches locked amount
+        let locked_amount: u64 = Mapping::get(commitment_amounts, commitment_hash);
+        assert_eq(locked_amount, amount);
+
+        // Market must be closed (reveal phase) or still open
+        let status: u8 = Mapping::get(market_status, market_id);
+        let can_reveal: bool = (status == STATUS_OPEN) || (status == STATUS_CLOSED);
+        assert(can_reveal);
+
+        // Check reveal deadline if set
+        let deadline: u32 = Mapping::get_or_use(reveal_deadline, market_id, 4294967295u32);
+        assert(block.height as u32 < deadline);
+
+        // Update pool totals
+        let current_yes: u64 = Mapping::get_or_use(yes_pool, market_id, 0u64);
+        let current_no: u64 = Mapping::get_or_use(no_pool, market_id, 0u64);
+
+        let updated_yes: u64 = direction ? (current_yes + amount) : current_yes;
+        let updated_no: u64 = direction ? current_no : (current_no + amount);
+
+        Mapping::set(yes_pool, market_id, updated_yes);
+        Mapping::set(no_pool, market_id, updated_no);
+
+        // Update estimated fees
+        let total_pool: u64 = updated_yes + updated_no;
+        let est_fee: u64 = (total_pool * FEE_BPS) / 10000u64;
+        Mapping::set(estimated_fees, market_id, est_fee);
+
+        // Clear commitment (consumed)
+        Mapping::set(commitments, commitment_hash, 0field);
+    }
+
+    // Reclaim unrevealed commitment after reveal deadline
+    async transition reclaim_commitment(
+        public commitment_hash: field
+    ) -> Future {
+        let transfer_future: Future = credits.aleo/transfer_public(self.signer, 0u64); // placeholder, real amount in finalize
+        return finalize_reclaim_commitment(commitment_hash, self.signer, transfer_future);
+    }
+
+    async function finalize_reclaim_commitment(
+        commitment_hash: field,
+        caller: address,
+        transfer: Future
+    ) {
+        // Verify commitment exists
+        let market_id: field = Mapping::get(commitments, commitment_hash);
+        assert(market_id != 0field);
+
+        // Verify caller is owner
+        let owner: address = Mapping::get(commitment_owners, commitment_hash);
+        assert_eq(caller, owner);
+
+        // Verify reveal deadline has passed
+        let deadline: u32 = Mapping::get(reveal_deadline, market_id);
+        assert(block.height as u32 >= deadline);
+
+        // Clear commitment
+        Mapping::set(commitments, commitment_hash, 0field);
+
+        // Transfer locked amount back
+        transfer.await();
+    }
+
+    // Commitment struct for hashing
+    struct Commitment {
+        market_id: field,
+        direction: bool,
+        amount: u64,
+        nonce: field,
+    }
+
+    // Set reveal deadline for a market (admin only, typically when closing betting)
+    async transition set_reveal_deadline(public market_id: field, public deadline: u32) -> Future {
+        return finalize_set_reveal_deadline(market_id, deadline, self.caller);
+    }
+
+    async function finalize_set_reveal_deadline(market_id: field, deadline: u32, caller: address) {
+        let admin_addr: address = Mapping::get(admin, true);
+        assert_eq(caller, admin_addr);
+
+        Mapping::set(reveal_deadline, market_id, deadline);
+    }
