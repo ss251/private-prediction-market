@@ -19,7 +19,7 @@ describe("aleo utilities", () => {
     });
 
     it("has oracle program ID set", () => {
-      expect(ORACLE_PROGRAM_ID).toBe("lasagna_oracle_v1.aleo");
+      expect(ORACLE_PROGRAM_ID).toBe("official_oracle_v2.aleo");
     });
   });
 

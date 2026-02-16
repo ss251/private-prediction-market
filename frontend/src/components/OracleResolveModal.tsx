@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
-import { PROGRAM_ID, formatCredits, getOracleOutcome } from "../lib/aleo";
+import { PROGRAM_ID, formatCredits } from "../lib/aleo";
 
 interface ResolveModalProps {
   marketId: string;
@@ -20,7 +20,6 @@ export function ResolveModal({
   question,
   yesPool,
   noPool,
-  oracleEnabled,
   isOpen,
   onClose,
   onResolved,
@@ -30,41 +29,10 @@ export function ResolveModal({
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
 
   const [outcome, setOutcome] = useState<boolean>(true);
-  const [oracleStatus, setOracleStatus] = useState<{ result: number; timestamp: number } | null>(null);
-  const [oracleLoading, setOracleLoading] = useState(false);
-
-  // Check oracle status when modal opens for oracle-enabled markets
-  useEffect(() => {
-    if (!isOpen || !oracleEnabled) return;
-    setOracleLoading(true);
-    getOracleOutcome(marketId).then(setOracleStatus).finally(() => setOracleLoading(false));
-  }, [isOpen, oracleEnabled, marketId]);
 
   if (!isOpen) return null;
 
   const totalPool = yesPool + noPool;
-  const oracleReady = oracleEnabled && oracleStatus && oracleStatus.result !== 0;
-
-  const handleOracleResolve = async () => {
-    if (!address || !executeTransaction) return;
-
-    const resultTxId = await execute(
-      async () => {
-        const result = await executeTransaction({
-          program: PROGRAM_ID,
-          function: "resolve_with_oracle",
-          inputs: [marketId],
-          fee: 500_000,
-        });
-        return result?.transactionId ?? "";
-      },
-      { statusFn: (txId: string) => transactionStatus(txId).then(r => r.status) }
-    );
-
-    if (resultTxId && onResolved) {
-      onResolved();
-    }
-  };
 
   const handleResolve = async () => {
     if (!address || !executeTransaction) return;
@@ -79,7 +47,7 @@ export function ResolveModal({
         });
         return result?.transactionId ?? "";
       },
-      { statusFn: (txId: string) => transactionStatus(txId).then(r => r.status) }
+      { statusFn: (txId: string) => transactionStatus(txId).then(r => typeof r === 'string' ? r : r.status) }
     );
 
     if (resultTxId && onResolved) {
@@ -136,45 +104,11 @@ export function ResolveModal({
           </div>
         </div>
 
-        {/* Oracle resolution */}
-        {oracleEnabled && state === "idle" && (
-          <div className="mb-4 space-y-3">
-            <div className="p-3 rounded-xl bg-accent/10 border border-accent/20">
-              <div className="flex items-center gap-2 mb-2">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D4A054" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4" /><path d="M12 8h.01" />
-                </svg>
-                <span className="text-accent-light font-medium text-sm">Oracle Resolution</span>
-              </div>
-              {oracleLoading ? (
-                <p className="text-gray-400 text-sm">Checking oracle status...</p>
-              ) : oracleReady ? (
-                <>
-                  <p className="text-emerald-400 text-sm mb-2">
-                    ✓ Oracle outcome available: <strong>{oracleStatus!.result === 1 ? "YES" : "NO"}</strong>
-                  </p>
-                  <button
-                    onClick={handleOracleResolve}
-                    className="w-full py-2 bg-accent hover:bg-accent-light rounded-xl text-navy-950 font-bold text-sm transition-colors"
-                  >
-                    Resolve with Oracle
-                  </button>
-                </>
-              ) : (
-                <p className="text-gray-400 text-sm">
-                  Oracle outcome not yet available. You can resolve manually below, or wait for the oracle.
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Manual outcome selection */}
+        {/* Outcome selection */}
         {state === "idle" && (
           <div className="mb-4 space-y-3">
             <p className="text-sm text-gray-400">
-              {oracleEnabled ? "Or manually select the winning outcome:" : "Select the winning outcome for this market."}
+              Select the winning outcome for this market.
             </p>
             <div className="flex gap-2">
               <button
