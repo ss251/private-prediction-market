@@ -5,7 +5,6 @@ import { WalletModalProvider, useWalletModal } from '@provablehq/aleo-wallet-ada
 import { ShieldWalletAdapter } from '@provablehq/aleo-wallet-adaptor-shield';
 import { DecryptPermission } from '@provablehq/aleo-wallet-adaptor-core';
 import { Network } from '@provablehq/aleo-types';
-import { Network } from '@provablehq/aleo-types';
 import '@provablehq/aleo-wallet-adaptor-react-ui/dist/styles.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Header } from './components/Header';
