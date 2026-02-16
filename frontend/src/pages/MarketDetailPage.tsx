@@ -447,6 +447,7 @@ export function MarketDetailPage() {
           question={market.question}
           yesPool={effectiveChainData.yesPool}
           noPool={effectiveChainData.noPool}
+          oracleEnabled={effectiveChainData.oracleEnabled}
           isOpen={true}
           onClose={handleModalClose}
           onResolved={() => {

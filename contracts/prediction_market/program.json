@@ -11,9 +11,9 @@
       "network": "testnetbeta"
     },
     {
-      "name": "lasagna_oracle_v1.aleo",
-      "location": "local",
-      "path": "../oracle"
+      "name": "official_oracle_v2.aleo",
+      "location": "network",
+      "network": "testnetbeta"
     }
   ],
   "dev_dependencies": null

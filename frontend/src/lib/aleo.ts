@@ -278,30 +278,43 @@ export async function getLatestHeight(): Promise<number> {
 }
 
 // Oracle constants
-export const ORACLE_PROGRAM_ID = "official_oracle_v2.aleo";
+export const ORACLE_PROGRAM_ID = "lasagna_oracle_v1.aleo";
 
-// Check if oracle data is available on-chain for a given request hash
-export async function getOracleAttestedData(
-  requestHash: bigint
-): Promise<{ data: bigint; timestamp: bigint } | null> {
+// Check if oracle outcome is available on-chain for a given event/market ID
+export async function getOracleOutcome(
+  eventId: string
+): Promise<{ result: number; timestamp: number } | null> {
   try {
     const response = await fetch(
-      `${API_URL}/program/${ORACLE_PROGRAM_ID}/mapping/sgx_attested_data/${requestHash}u128`
+      `${API_URL}/program/${ORACLE_PROGRAM_ID}/mapping/outcomes/${eventId}`
     );
     if (!response.ok) return null;
     const raw = await response.text();
     const cleaned = raw.replace(/^"|"$/g, "");
-    // Parse struct: { data: 12345u128, attestation_timestamp: 67890u128 }
-    const dataMatch = cleaned.match(/data:\s*(\d+)u128/);
-    const tsMatch = cleaned.match(/attestation_timestamp:\s*(\d+)u128/);
-    if (!dataMatch || !tsMatch) return null;
+    // Parse struct: { event_id: ...field, result: 1u8, timestamp: 12345u32 }
+    const resultMatch = cleaned.match(/result:\s*(\d+)u8/);
+    const tsMatch = cleaned.match(/timestamp:\s*(\d+)u32/);
+    if (!resultMatch) return null;
     return {
-      data: BigInt(dataMatch[1]),
-      timestamp: BigInt(tsMatch[1]),
+      result: Number(resultMatch[1]),
+      timestamp: tsMatch ? Number(tsMatch[1]) : 0,
     };
   } catch {
     return null;
   }
+}
+
+// Legacy alias for backward compatibility
+export async function getOracleAttestedData(
+  requestHash: bigint
+): Promise<{ data: bigint; timestamp: bigint } | null> {
+  // Attempt to read from lasagna oracle using the request hash as event_id
+  const outcome = await getOracleOutcome(`${requestHash}field`);
+  if (!outcome || outcome.result === 0) return null;
+  return {
+    data: BigInt(outcome.result),
+    timestamp: BigInt(outcome.timestamp),
+  };
 }
 
 // Calculate payout for a winning bet

@@ -268,6 +268,7 @@ export function MarketList() {
             question={selectedMarket.question}
             yesPool={selectedChainMarket?.yesPool ?? BigInt(selectedMarket.yesPool)}
             noPool={selectedChainMarket?.noPool ?? BigInt(selectedMarket.noPool)}
+            oracleEnabled={selectedChainMarket?.oracleEnabled}
             isOpen={true}
             onClose={handleModalClose}
             onResolved={() => {
