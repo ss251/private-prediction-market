@@ -2,7 +2,7 @@
 // Parimutuel betting where bet positions are private, pool totals are public
 
 import credits.aleo;
-import official_oracle_v2.aleo;
+import lasagna_oracle_v1.aleo;
 
 program prediction_market_test004.aleo {
     // ========================================
@@ -239,8 +239,8 @@ program prediction_market_test004.aleo {
         Mapping::set(oracle_enabled, market_id, true);
     }
 
-    // Resolve market using oracle attested data
-    // Anyone can call this once oracle data is available on-chain
+    // Resolve market using Lasagna oracle data
+    // Anyone can call this once oracle outcome is available on-chain
     async transition resolve_with_oracle(
         public market_id: field
     ) -> Future {
@@ -258,18 +258,17 @@ program prediction_market_test004.aleo {
         let is_oracle: bool = Mapping::get_or_use(oracle_enabled, market_id, false);
         assert(is_oracle);
 
-        // Get the expected request hash and threshold
-        let request_hash: u128 = Mapping::get(oracle_request_hash, market_id);
-        let threshold: u128 = Mapping::get(price_threshold, market_id);
-
-        // Read attested data from the oracle program
-        let attested: AttestedData = Mapping::get(
-            official_oracle_v2.aleo/sgx_attested_data,
-            request_hash
+        // Read outcome from lasagna oracle (market_id is used as event_id)
+        let oracle_outcome: Outcome = Mapping::get(
+            lasagna_oracle_v1.aleo/outcomes,
+            market_id
         );
 
-        // Determine outcome: YES wins if attested price >= threshold
-        let yes_wins: bool = attested.data >= threshold;
+        // Verify oracle has resolved this event (result != 0)
+        assert(oracle_outcome.result != 0u8);
+
+        // result: 1 = YES wins, 2 = NO wins
+        let yes_wins: bool = oracle_outcome.result == 1u8;
 
         // Set outcome and mark resolved
         Mapping::set(market_outcome, market_id, yes_wins);

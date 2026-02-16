@@ -1,0 +1,9 @@
+{
+  "program": "lasagna_oracle_v1.aleo",
+  "version": "0.1.0",
+  "description": "Simple trusted-signer oracle for Lasagna prediction market",
+  "license": "MIT",
+  "leo": "3.4.0",
+  "dependencies": null,
+  "dev_dependencies": null
+}
