@@ -1,9 +1,5 @@
 import { useState } from "react";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
-import {
-  Transaction,
-  WalletAdapterNetwork,
-} from "@demox-labs/aleo-wallet-adapter-base";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import { formatCredits, PROGRAM_ID } from "../lib/aleo";
@@ -27,7 +23,7 @@ export function RefundModal({
   onClose,
   onRefunded,
 }: RefundModalProps) {
-  const { publicKey, requestTransaction, transactionStatus } =
+  const { address, executeTransaction, transactionStatus } =
     useWallet();
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
   const { fetchBetRecords, loading: recordsLoading } = useBetRecords();
@@ -41,7 +37,7 @@ export function RefundModal({
   const hasPosition = totalRefund > 0n;
 
   const handleRefund = async () => {
-    if (!publicKey || !requestTransaction || !hasPosition) return;
+    if (!address || !executeTransaction || !hasPosition) return;
 
     setRecordError(null);
 
@@ -58,19 +54,15 @@ export function RefundModal({
 
     const resultTxId = await execute(
       async () => {
-        const tx = Transaction.createTransaction(
-          publicKey,
-          WalletAdapterNetwork.TestnetBeta,
-          PROGRAM_ID,
-          "claim_refund",
-          [record.raw],
-          500_000
-        );
-
-        const result = await requestTransaction(tx);
-        return result;
+        const result = await executeTransaction({
+          program: PROGRAM_ID,
+          function: "claim_refund",
+          inputs: [record.raw],
+          fee: 500_000,
+        });
+        return result?.transactionId ?? "";
       },
-      { statusFn: transactionStatus }
+      { statusFn: (txId: string) => transactionStatus(txId).then(r => r.status) }
     );
 
     if (resultTxId && onRefunded) {

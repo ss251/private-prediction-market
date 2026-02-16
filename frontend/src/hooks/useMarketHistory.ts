@@ -1,7 +1,7 @@
 // Hook for market history using on-chain data
 
 import { useQuery } from "@tanstack/react-query";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { getMarketData, PROGRAM_ID, type MarketData } from "../lib/aleo";
 
 export interface UserPosition {

@@ -1,10 +1,12 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { WalletProvider } from '@demox-labs/aleo-wallet-adapter-react';
-import { WalletModalProvider, useWalletModal } from '@demox-labs/aleo-wallet-adapter-reactui';
-import { LeoWalletAdapter } from '@demox-labs/aleo-wallet-adapter-leo';
-import { DecryptPermission, WalletAdapterNetwork } from '@demox-labs/aleo-wallet-adapter-base';
-import '@demox-labs/aleo-wallet-adapter-reactui/styles.css';
+import { AleoWalletProvider } from '@provablehq/aleo-wallet-adaptor-react';
+import { WalletModalProvider, useWalletModal } from '@provablehq/aleo-wallet-adaptor-react-ui';
+import { ShieldWalletAdapter } from '@provablehq/aleo-wallet-adaptor-shield';
+import { DecryptPermission } from '@provablehq/aleo-wallet-adaptor-core';
+import { Network } from '@provablehq/aleo-types';
+import { Network } from '@provablehq/aleo-types';
+import '@provablehq/aleo-wallet-adaptor-react-ui/dist/styles.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
@@ -54,26 +56,22 @@ function App() {
   useEffect(() => { startIndexerPolling(); }, []);
 
   const wallets = useMemo(
-    () => [
-      new LeoWalletAdapter({
-        appName: 'Lasagna',
-      }),
-    ],
+    () => [new ShieldWalletAdapter()],
     []
   );
 
   return (
     <QueryClientProvider client={queryClient}>
-      <WalletProvider
+      <AleoWalletProvider
         wallets={wallets}
         decryptPermission={DecryptPermission.UponRequest}
-        network={WalletAdapterNetwork.TestnetBeta}
+        network={Network.TESTNET}
         autoConnect
       >
         <WalletModalProvider>
           <AppContent />
         </WalletModalProvider>
-      </WalletProvider>
+      </AleoWalletProvider>
     </QueryClientProvider>
   );
 }

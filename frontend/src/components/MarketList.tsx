@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import type {} from "@tanstack/react-query";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";

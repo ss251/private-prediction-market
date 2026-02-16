@@ -1,9 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
-import {
-  Transaction,
-  WalletAdapterNetwork,
-} from "@demox-labs/aleo-wallet-adapter-base";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import {
@@ -175,7 +171,7 @@ export function CreateMarketModal({
   onClose,
   onCreated,
 }: CreateMarketModalProps) {
-  const { publicKey, requestTransaction, transactionStatus } =
+  const { address, executeTransaction, transactionStatus } =
     useWallet();
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
 
@@ -191,7 +187,7 @@ export function CreateMarketModal({
   const [createdMarketId, setCreatedMarketId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isOpen || !publicKey) return;
+    if (!isOpen || !address) return;
     let cancelled = false;
     setPhase("loading"); // eslint-disable-line react-hooks/set-state-in-effect
 
@@ -206,14 +202,14 @@ export function CreateMarketModal({
 
       if (!admin) {
         setPhase("not-deployed");
-      } else if (admin !== publicKey) {
+      } else if (admin !== address) {
         setPhase("not-admin");
       } else {
         setPhase("form");
       }
     });
     return () => { cancelled = true; };
-  }, [isOpen, publicKey]);
+  }, [isOpen, address]);
 
   useEffect(() => {
     if (!endDate) {
@@ -279,7 +275,7 @@ export function CreateMarketModal({
     estimatedBlock > (currentHeight ?? 0);
 
   const handleCreateMarket = async () => {
-    if (!publicKey || !requestTransaction || !estimatedBlock) return;
+    if (!address || !executeTransaction || !estimatedBlock) return;
 
     setPhase("creating");
 
@@ -291,20 +287,16 @@ export function CreateMarketModal({
 
     const resultTxId = await execute(
       async () => {
-        const tx = Transaction.createTransaction(
-          publicKey,
-          WalletAdapterNetwork.TestnetBeta,
-          PROGRAM_ID,
-          "create_market",
-          [marketId, `${estimatedBlock}u32`, yesLabelHash, noLabelHash],
-          1_000_000,
-          false
-        );
-
-        const result = await requestTransaction(tx);
-        return result;
+        const result = await executeTransaction({
+          program: PROGRAM_ID,
+          function: "create_market",
+          inputs: [marketId, `${estimatedBlock}u32`, yesLabelHash, noLabelHash],
+          fee: 1_000_000,
+          privateFee: false,
+        });
+        return result?.transactionId ?? "";
       },
-      { statusFn: transactionStatus }
+      { statusFn: (txId: string) => transactionStatus(txId).then(r => r.status) }
     );
 
     if (!resultTxId) {

@@ -4,7 +4,7 @@
 // This hook must NEVER run automatically. Callers use refetch() explicitly
 // after user-initiated actions (bet placed, claim, refund, modal open).
 import { useCallback, useState } from "react";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { PROGRAM_ID } from "../lib/aleo";
 
 export interface OnChainPosition {
@@ -58,12 +58,12 @@ function parseRecords(rawRecords: unknown[]): OnChainPosition[] {
  * Does NOT fetch automatically — call `refetch()` explicitly when needed.
  */
 export function useUserPositions(marketIds: string[]) {
-  const { publicKey, requestRecords } = useWallet();
+  const { address, requestRecords } = useWallet();
   const [data, setData] = useState<OnChainPosition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const refetch = useCallback(async () => {
-    if (!publicKey || !requestRecords || marketIds.length === 0) {
+    if (!address || !requestRecords || marketIds.length === 0) {
       setData([]);
       return;
     }
@@ -78,7 +78,7 @@ export function useUserPositions(marketIds: string[]) {
     } finally {
       setIsLoading(false);
     }
-  }, [publicKey, requestRecords, marketIds]);
+  }, [address, requestRecords, marketIds]);
 
   return { data, isLoading, refetch };
 }

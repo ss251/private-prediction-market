@@ -1,9 +1,5 @@
 import { useState } from "react";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
-import {
-  Transaction,
-  WalletAdapterNetwork,
-} from "@demox-labs/aleo-wallet-adapter-base";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import { calculatePayout, formatCredits, PROGRAM_ID } from "../lib/aleo";
@@ -33,7 +29,7 @@ export function ClaimModal({
   onClose,
   onClaimed,
 }: ClaimModalProps) {
-  const { publicKey, requestTransaction, transactionStatus } =
+  const { address, executeTransaction, transactionStatus } =
     useWallet();
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
   const { fetchBetRecords, loading: recordsLoading } = useBetRecords();
@@ -51,7 +47,7 @@ export function ClaimModal({
     : 0n;
 
   const handleClaim = async () => {
-    if (!publicKey || !requestTransaction || !hasWinningPosition) return;
+    if (!address || !executeTransaction || !hasWinningPosition) return;
 
     setRecordError(null);
 
@@ -67,19 +63,15 @@ export function ClaimModal({
 
     const resultTxId = await execute(
       async () => {
-        const tx = Transaction.createTransaction(
-          publicKey,
-          WalletAdapterNetwork.TestnetBeta,
-          PROGRAM_ID,
-          "claim_winnings",
-          [winningRecord.raw, `${totalPayout}u64`],
-          500_000
-        );
-
-        const result = await requestTransaction(tx);
-        return result;
+        const result = await executeTransaction({
+          program: PROGRAM_ID,
+          function: "claim_winnings",
+          inputs: [winningRecord.raw, `${totalPayout}u64`],
+          fee: 500_000,
+        });
+        return result?.transactionId ?? "";
       },
-      { statusFn: transactionStatus }
+      { statusFn: (txId: string) => transactionStatus(txId).then(r => r.status) }
     );
 
     if (resultTxId && onClaimed) {

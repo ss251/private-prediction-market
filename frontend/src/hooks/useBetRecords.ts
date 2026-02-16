@@ -1,7 +1,7 @@
 // Fetch decrypted Bet records from the connected wallet
 // Used at claim/refund time to get the private record needed for the transition
 import { useCallback, useState } from "react";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { PROGRAM_ID } from "../lib/aleo";
 
 export interface BetRecord {

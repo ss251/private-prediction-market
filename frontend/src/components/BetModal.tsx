@@ -1,9 +1,5 @@
 import { useState, useEffect } from "react";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
-import {
-  Transaction,
-  WalletAdapterNetwork,
-} from "@demox-labs/aleo-wallet-adapter-base";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import { getPublicBalance, formatCredits, PROGRAM_ID } from "../lib/aleo";
@@ -26,7 +22,7 @@ interface BetModalProps {
 }
 
 export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome }: BetModalProps) {
-  const { publicKey, requestTransaction, transactionStatus } = useWallet();
+  const { address, executeTransaction, transactionStatus } = useWallet();
   const [outcome, setOutcome] = useState<"yes" | "no">(initialOutcome ?? "yes");
   const [amount, setAmount] = useState("");
   const [balance, setBalance] = useState<bigint | null>(null);
@@ -37,19 +33,19 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
   const [, setCheckingRecords] = useState(false);
 
   useEffect(() => {
-    if (!isOpen || !publicKey) {
+    if (!isOpen || !address) {
       setBalance(null);
       return;
     }
     setBalanceLoading(true);
-    getPublicBalance(publicKey)
+    getPublicBalance(address)
       .then(setBalance)
       .catch(() => setBalance(null))
       .finally(() => setBalanceLoading(false));
-  }, [isOpen, publicKey]);
+  }, [isOpen, address]);
 
   useEffect(() => {
-    if (!isOpen || !publicKey) {
+    if (!isOpen || !address) {
       setExistingRecord(null);
       return;
     }
@@ -63,7 +59,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
       setCheckingRecords(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, publicKey, outcome, market.id]);
+  }, [isOpen, address, outcome, market.id]);
 
   if (!isOpen) return null;
 
@@ -72,7 +68,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!publicKey || !requestTransaction) return;
+    if (!address || !executeTransaction) return;
 
     if (amountMicrocredits < 1000) {
       return;
@@ -85,20 +81,16 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
           ? [existingRecord, `${amountMicrocredits}u64`]
           : [market.id, outcome === "yes" ? "true" : "false", `${amountMicrocredits}u64`];
 
-        const tx = Transaction.createTransaction(
-          publicKey,
-          WalletAdapterNetwork.TestnetBeta,
-          PROGRAM_ID,
-          functionName,
+        const result = await executeTransaction({
+          program: PROGRAM_ID,
+          function: functionName,
           inputs,
-          500_000,
-          false
-        );
-
-        const result = await requestTransaction(tx);
-        return result;
+          fee: 500_000,
+          privateFee: false,
+        });
+        return result?.transactionId ?? "";
       },
-      { statusFn: transactionStatus }
+      { statusFn: (txId: string) => transactionStatus(txId).then(r => r.status) }
     );
 
     if (resultTxId && onBetPlaced) {

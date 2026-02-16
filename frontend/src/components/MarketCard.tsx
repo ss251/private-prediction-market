@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { formatPool } from "../lib/aleo";
 import type { OnChainPosition } from "../hooks/useUserPositions";
 
