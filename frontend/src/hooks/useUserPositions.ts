@@ -29,7 +29,8 @@ function parseRecords(rawRecords: unknown[]): OnChainPosition[] {
       const data = rec as RawRecord;
       if (!data.market_id || !data.amount) continue;
 
-      const marketId = String(data.market_id);
+      // Normalize market_id: strip "field" suffix for consistent matching
+      const marketId = String(data.market_id).replace(/field$/, "");
       const outcome = String(data.outcome) === "true";
       const amountStr = String(data.amount).replace(/u64$/, "");
       const amount = BigInt(amountStr);
@@ -72,7 +73,8 @@ export function useUserPositions(marketIds: string[]) {
     try {
       const rawRecords = await requestRecords(PROGRAM_ID);
       const positions = parseRecords(rawRecords as unknown[]);
-      setData(positions.filter((p) => marketIds.includes(p.marketId)));
+      const normalizedIds = marketIds.map(id => id.replace(/field$/, ""));
+      setData(positions.filter((p) => normalizedIds.includes(p.marketId)));
     } catch {
       // User rejected or wallet error — keep existing data
     } finally {
