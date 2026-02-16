@@ -14,13 +14,11 @@ import {
   MarketStatus,
   getMarketData,
   type MarketData,
-  getLatestHeight,
-  getMappingValue,
+  PROGRAM_ID,
 } from "../lib/aleo";
 import { PoolHistoryChart } from "../components/PoolHistoryChart";
 import { CommitBetModal } from "../components/CommitBetModal";
 import { RevealBetModal } from "../components/RevealBetModal";
-import { CommitRevealStatus } from "../components/CommitRevealStatus";
 import { useMarkets, type DisplayMarket } from "../hooks/useMarkets";
 import {
   useUserPositions,
@@ -293,6 +291,61 @@ export function MarketDetailPage() {
                 Privacy Disclosure
               </span>
             </h2>
+
+            <div className="space-y-3 mb-4">
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-rose-500/5 border border-rose-500/10">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-gray-300 mb-1">Public on-chain</p>
+                  <ul className="text-xs text-gray-500 space-y-0.5">
+                    <li>• Pool totals (YES/NO amounts)</li>
+                    <li>• Individual bet direction and amount</li>
+                    <li>• Market outcome and resolution</li>
+                    <li>• Transaction fees and timestamps</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-privacy/5 border border-privacy/10">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D4A054" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-gray-300 mb-1">Private (ZK-protected)</p>
+                  <ul className="text-xs text-gray-500 space-y-0.5">
+                    <li>• Your wallet address — never linked to bets</li>
+                    <li>• Your identity as a bettor</li>
+                    <li>• Your encrypted Bet record (only you hold the key)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-xs text-gray-500 space-y-2">
+              <p>
+                {"Aleo's "}
+                <code className="text-gray-400 bg-navy-900 px-1 py-0.5 rounded">place_bet</code>
+                {" transition uses "}
+                <code className="text-gray-400 bg-navy-900 px-1 py-0.5 rounded">self.signer</code>
+                {" to create a private "}
+                <code className="text-gray-400 bg-navy-900 px-1 py-0.5 rounded">Bet</code>
+                {" record encrypted to your address. The pool update is public, but the record owner is never revealed."}
+              </p>
+              <p>
+                {"Verify on the "}
+                <a
+                  href={`https://testnet.explorer.provable.com/program/${PROGRAM_ID}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent-light hover:text-accent"
+                >
+                  Aleo Explorer →
+                </a>
+              </p>
+            </div>
           </div>
         </div>
 
