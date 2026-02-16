@@ -84,24 +84,6 @@ export function MarketDetailPage() {
   // Use chain data when available, otherwise fall back to display data
   const effectiveChainData = chainData ?? (market ? displayToMarketData(market) : null);
 
-  // Commit-reveal phase data
-  const { data: commitRevealData } = useQuery({
-    queryKey: ["commitReveal", marketId],
-    queryFn: async () => {
-      if (!marketId) return null;
-      const [enabledRaw, deadlineRaw, currentHeight] = await Promise.all([
-        getMappingValue("commit_reveal_enabled", marketId),
-        getMappingValue("reveal_deadline", marketId),
-        getLatestHeight(),
-      ]);
-      const enabled = enabledRaw === "true";
-      const revealDeadline = deadlineRaw ? parseInt(deadlineRaw.replace(/u\d+$/, "")) : undefined;
-      return { enabled, revealDeadline, currentBlock: currentHeight };
-    },
-    enabled: !!marketId,
-    staleTime: 30_000,
-  });
-
   // GSAP entrance animation
   useGSAP(() => {
     if (!market) return;
@@ -397,26 +379,6 @@ export function MarketDetailPage() {
             </div>
           )}
 
-          {/* Reveal phase button */}
-          {connected && commitRevealData?.enabled && market.status === "closed" && (
-            <div className="detail-section glass-card p-4 sm:p-5">
-              <CommitRevealStatus
-                commitRevealEnabled={true}
-                marketStatus="closed"
-                revealDeadline={commitRevealData.revealDeadline}
-                currentBlock={commitRevealData.currentBlock}
-                endBlock={market.endTime}
-              />
-              <button
-                onClick={() => setActiveModal("reveal")}
-                className="w-full mt-3 py-3 rounded-md bg-amber-500/10 text-amber-400 border-2 border-amber-500/20 hover:border-amber-500/40 text-sm font-bold transition-colors"
-              >
-                🔓 Reveal Committed Bets
-              </button>
-            </div>
-          )}
-
-          {/* Connect wallet prompt */}
           {isOpen && !connected && (
             <div className="detail-section glass-card p-4 sm:p-5 text-center">
               <p className="text-gray-400 text-sm mb-3">Connect wallet to place bets</p>

@@ -1,17 +1,22 @@
 /**
- * User position tracking via Supabase indexed positions.
+ * User position tracking via Supabase.
  *
- * Positions are stored in the `user_positions` table and updated when
- * bets are placed. No wallet popup or `requestRecords()` needed.
- * Falls back to localStorage positions if Supabase is unavailable.
- * @module
+ * Positions are stored in the `user_positions` table, populated when
+ * bets are placed (frontend reports) and reconciled by the indexer.
+ * This approach requires no wallet popup — positions load instantly
+ * via a single Supabase REST call, just like market data.
+ *
+ * The optional `verifyOnChain()` method still uses `requestRecords()`
+ * for users who want cryptographic proof, but it's never called
+ * automatically.
  */
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
-import { fetchUserPositions } from "../lib/supabase";
-import { getLocalPositionsForMarkets } from "../lib/localPositions";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchUserPositions, type SupabasePosition } from "../lib/supabasePositions";
+import { PROGRAM_ID } from "../lib/aleo";
 
-/** Aggregated position for a single market. */
+/** Aggregated on-chain position for a single market. */
 export interface OnChainPosition {
   marketId: string;
   yesAmount: bigint;
@@ -19,58 +24,103 @@ export interface OnChainPosition {
 }
 
 /**
- * Returns user positions from Supabase (instant, no popup).
- * Falls back to localStorage if Supabase is unavailable.
- * Call `refetch()` to re-query after placing a bet.
+ * Convert a Supabase position row to the OnChainPosition interface
+ * used by the rest of the frontend.
+ */
+function toOnChainPosition(sp: SupabasePosition): OnChainPosition {
+  return {
+    marketId: sp.marketId.replace(/field$/, ""),
+    yesAmount: BigInt(sp.yesAmount),
+    noAmount: BigInt(sp.noAmount),
+  };
+}
+
+interface RawRecord {
+  market_id?: string;
+  outcome?: string;
+  amount?: string;
+}
+
+/** Parse wallet records into positions (used only by verifyOnChain). */
+function parseRecords(rawRecords: unknown[]): OnChainPosition[] {
+  const byMarket = new Map<string, { yes: bigint; no: bigint }>();
+  for (const rec of rawRecords) {
+    try {
+      const data = rec as RawRecord;
+      if (!data.market_id || !data.amount) continue;
+      const marketId = String(data.market_id).replace(/field$/, "");
+      const outcome = String(data.outcome) === "true";
+      const amount = BigInt(String(data.amount).replace(/u64$/, ""));
+      const existing = byMarket.get(marketId) ?? { yes: 0n, no: 0n };
+      if (outcome) existing.yes += amount;
+      else existing.no += amount;
+      byMarket.set(marketId, existing);
+    } catch { continue; }
+  }
+  return Array.from(byMarket.entries()).map(([marketId, a]) => ({
+    marketId,
+    yesAmount: a.yes,
+    noAmount: a.no,
+  }));
+}
+
+/**
+ * Hook for user positions backed by Supabase.
+ *
+ * Loads positions automatically when a wallet is connected —
+ * no popup, no delay. Uses react-query for caching and refetching.
+ *
+ * @param marketIds - Market IDs to fetch positions for.
  */
 export function useUserPositions(marketIds: string[]) {
-  const { address } = useWallet();
-  const [data, setData] = useState<OnChainPosition[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasFetched, setHasFetched] = useState(false);
+  const { address, requestRecords } = useWallet();
+  const queryClient = useQueryClient();
+  const [verifiedData, setVerifiedData] = useState<OnChainPosition[] | null>(null);
+  const [verifyLoading, setVerifyLoading] = useState(false);
 
-  const fetchPositions = useCallback(async () => {
-    if (!address || marketIds.length === 0) {
-      setData([]);
-      setHasFetched(true);
-      return;
-    }
+  const normalizedIds = marketIds.map((id) => id.replace(/field$/, ""));
 
-    setIsLoading(true);
+  // Primary: Supabase query (instant, no popup)
+  const { data: supabasePositions, isLoading, refetch } = useQuery({
+    queryKey: ["userPositions", address, normalizedIds.join(",")],
+    queryFn: () => fetchUserPositions(address!, normalizedIds),
+    enabled: !!address && normalizedIds.length > 0,
+    staleTime: 10_000, // 10s — positions update on bet placement
+    refetchInterval: 30_000, // poll every 30s for indexer updates
+  });
+
+  const data: OnChainPosition[] = verifiedData ??
+    (supabasePositions ?? []).map(toOnChainPosition);
+
+  const hasFetched = !isLoading && !!address;
+
+  /**
+   * Optional: verify positions directly from wallet records.
+   * Triggers a wallet popup. Use only when user explicitly requests
+   * cryptographic proof of their positions.
+   */
+  const verifyOnChain = useCallback(async () => {
+    if (!address || !requestRecords || marketIds.length === 0) return;
+    setVerifyLoading(true);
     try {
-      const supabasePositions = await fetchUserPositions(address, marketIds);
-
-      if (supabasePositions.length > 0) {
-        setData(
-          supabasePositions.map((p) => ({
-            marketId: p.marketId,
-            yesAmount: BigInt(p.yesAmount),
-            noAmount: BigInt(p.noAmount),
-          }))
-        );
-      } else {
-        // Fallback to localStorage
-        const local = getLocalPositionsForMarkets(marketIds);
-        setData(local);
-      }
+      const rawRecords = await requestRecords(PROGRAM_ID);
+      const positions = parseRecords(rawRecords as unknown[]);
+      setVerifiedData(positions.filter((p) => normalizedIds.includes(p.marketId)));
     } catch {
-      // Supabase unavailable — fallback to localStorage
-      const local = getLocalPositionsForMarkets(marketIds);
-      setData(local);
+      // User rejected — keep Supabase data
     } finally {
-      setIsLoading(false);
-      setHasFetched(true);
+      setVerifyLoading(false);
     }
-  }, [address, marketIds]);
+  }, [address, requestRecords, marketIds, normalizedIds]);
 
-  useEffect(() => {
-    fetchPositions();
-  }, [fetchPositions]);
-
-  /** Re-fetch positions (e.g., after placing a bet). */
-  const refetch = useCallback(async () => {
-    await fetchPositions();
-  }, [fetchPositions]);
-
-  return { data, isLoading, hasFetched, refetch };
+  return {
+    data,
+    isLoading: isLoading || verifyLoading,
+    hasFetched,
+    refetch: async () => {
+      setVerifiedData(null);
+      await refetch();
+    },
+    verifyOnChain,
+  };
 }
