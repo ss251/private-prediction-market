@@ -5,7 +5,6 @@ import { TransactionProgress } from "./TransactionProgress";
 import { getPublicBalance, formatCredits, PROGRAM_ID } from "../lib/aleo";
 import { useBetRecords } from "../hooks/useBetRecords";
 import { upsertUserPosition } from "../lib/supabase";
-import { saveLocalPosition } from "../lib/localPositions";
 
 interface Market {
   id: string;
@@ -101,17 +100,8 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
     );
 
     if (resultTxId && address) {
-      const isYes = outcome === "yes";
-      // Save to Supabase (non-blocking)
-      upsertUserPosition(address, market.id, isYes, amountMicrocredits).catch(() => {});
-      // Also save to localStorage as fallback
-      saveLocalPosition({
-        marketId: market.id,
-        outcome: isYes,
-        amount: amountMicrocredits,
-        txId: resultTxId,
-        timestamp: Date.now(),
-      });
+      // Report position to Supabase (non-blocking)
+      upsertUserPosition(address, market.id, outcome === "yes", amountMicrocredits).catch(() => {});
       if (onBetPlaced) onBetPlaced();
     }
   };

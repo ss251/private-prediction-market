@@ -85,7 +85,7 @@ export function CommitBetModal({
     );
 
     if (resultTxId) {
-      saveCommitment({
+      await saveCommitment({
         marketId: market.id,
         direction: outcome === "yes",
         amount: amountMicrocredits,

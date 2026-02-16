@@ -2,18 +2,17 @@
  * User position tracking via Supabase.
  *
  * Positions are stored in the `user_positions` table, populated when
- * bets are placed (frontend reports) and reconciled by the indexer.
- * This approach requires no wallet popup — positions load instantly
- * via a single Supabase REST call, just like market data.
+ * bets are placed (frontend reports via `upsertUserPosition`) and
+ * reconciled by the indexer every 60s. Loads instantly via a single
+ * Supabase REST call — no wallet popup required.
  *
- * The optional `verifyOnChain()` method still uses `requestRecords()`
- * for users who want cryptographic proof, but it's never called
- * automatically.
+ * The optional `verifyOnChain()` method uses `requestRecords()` for
+ * users who want cryptographic proof, but it's never called automatically.
  */
-import { useCallback, useState, useEffect, useRef } from "react";
+import { useCallback, useState } from "react";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchUserPositions, type SupabasePosition } from "../lib/supabasePositions";
+import { useQuery } from "@tanstack/react-query";
+import { fetchUserPositions } from "../lib/supabase";
 import { PROGRAM_ID } from "../lib/aleo";
 
 /** Aggregated on-chain position for a single market. */
@@ -21,18 +20,6 @@ export interface OnChainPosition {
   marketId: string;
   yesAmount: bigint;
   noAmount: bigint;
-}
-
-/**
- * Convert a Supabase position row to the OnChainPosition interface
- * used by the rest of the frontend.
- */
-function toOnChainPosition(sp: SupabasePosition): OnChainPosition {
-  return {
-    marketId: sp.marketId.replace(/field$/, ""),
-    yesAmount: BigInt(sp.yesAmount),
-    noAmount: BigInt(sp.noAmount),
-  };
 }
 
 interface RawRecord {
@@ -74,7 +61,6 @@ function parseRecords(rawRecords: unknown[]): OnChainPosition[] {
  */
 export function useUserPositions(marketIds: string[]) {
   const { address, requestRecords } = useWallet();
-  const queryClient = useQueryClient();
   const [verifiedData, setVerifiedData] = useState<OnChainPosition[] | null>(null);
   const [verifyLoading, setVerifyLoading] = useState(false);
 
@@ -85,19 +71,23 @@ export function useUserPositions(marketIds: string[]) {
     queryKey: ["userPositions", address, normalizedIds.join(",")],
     queryFn: () => fetchUserPositions(address!, normalizedIds),
     enabled: !!address && normalizedIds.length > 0,
-    staleTime: 10_000, // 10s — positions update on bet placement
-    refetchInterval: 30_000, // poll every 30s for indexer updates
+    staleTime: 10_000,
+    refetchInterval: 30_000,
   });
 
-  const data: OnChainPosition[] = verifiedData ??
-    (supabasePositions ?? []).map(toOnChainPosition);
+  // Convert Supabase rows to OnChainPosition format
+  const supabaseData: OnChainPosition[] = (supabasePositions ?? []).map((sp) => ({
+    marketId: sp.marketId.replace(/field$/, ""),
+    yesAmount: BigInt(sp.yesAmount),
+    noAmount: BigInt(sp.noAmount),
+  }));
 
+  const data: OnChainPosition[] = verifiedData ?? supabaseData;
   const hasFetched = !isLoading && !!address;
 
   /**
    * Optional: verify positions directly from wallet records.
-   * Triggers a wallet popup. Use only when user explicitly requests
-   * cryptographic proof of their positions.
+   * Triggers a wallet popup — only use when explicitly requested.
    */
   const verifyOnChain = useCallback(async () => {
     if (!address || !requestRecords || marketIds.length === 0) return;

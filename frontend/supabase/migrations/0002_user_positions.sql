@@ -24,3 +24,6 @@ CREATE POLICY "Service write" ON public.user_positions FOR ALL USING (auth.role(
 -- Allow anon inserts (frontend reports positions after bet)
 CREATE POLICY "Anon upsert" ON public.user_positions FOR INSERT WITH CHECK (true);
 CREATE POLICY "Anon update" ON public.user_positions FOR UPDATE USING (true);
+
+-- Add block height cursor to indexer state for bet transaction scanning
+ALTER TABLE public.indexer_state ADD COLUMN IF NOT EXISTS last_block_height bigint DEFAULT 0;

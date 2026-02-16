@@ -118,6 +118,126 @@ async function getAllMarketIds(): Promise<string[]> {
   return ids;
 }
 
+// ── Bet transaction indexing ──────────────────────────────────────────
+
+interface BetEvent {
+  walletAddress: string;
+  marketId: string;
+  outcome: boolean;
+  amount: number;
+}
+
+/**
+ * Scan recent blocks for place_bet transactions and extract bet events.
+ * Parses the finalize future output to get (market_id, outcome, amount)
+ * and the nested transfer_public_as_signer to get the bettor address.
+ */
+async function scanBetTransactions(lastHeight: number): Promise<{ events: BetEvent[]; newHeight: number }> {
+  const events: BetEvent[] = [];
+
+  // Get current block height
+  let currentHeight: number;
+  try {
+    const res = await fetch(`${API_URL}/latest/height`);
+    if (!res.ok) return { events, newHeight: lastHeight };
+    currentHeight = parseInt(await res.text());
+  } catch {
+    return { events, newHeight: lastHeight };
+  }
+
+  // Scan at most 30 blocks per run (avoid timeouts)
+  const startHeight = Math.max(lastHeight + 1, currentHeight - 30);
+  const endHeight = currentHeight;
+
+  for (let h = startHeight; h <= endHeight; h++) {
+    try {
+      const res = await fetch(`${API_URL}/block/${h}/transactions`);
+      if (!res.ok) continue;
+      const transactions = await res.json();
+      if (!Array.isArray(transactions)) continue;
+
+      for (const tx of transactions) {
+        if (tx.type !== "execute") continue;
+        const transitions = tx.execution?.transitions ?? [];
+
+        for (const transition of transitions) {
+          if (
+            transition.program !== PROGRAM_ID ||
+            (transition.function !== "place_bet" && transition.function !== "add_to_bet")
+          ) continue;
+
+          // Extract data from the future output
+          const futureOutput = transition.outputs?.find((o: { type: string }) => o.type === "future");
+          if (!futureOutput?.value) continue;
+
+          const futureValue = futureOutput.value as string;
+
+          // Parse finalize arguments from future value
+          // Format: { program_id: ..., function_name: place_bet, arguments: [market_id, outcome, amount, {nested_future}] }
+          const marketMatch = futureValue.match(/arguments:\s*\[\s*(\d+field)/);
+          const outcomeMatch = futureValue.match(/arguments:\s*\[\s*\d+field,\s*(true|false)/);
+          const amountMatch = futureValue.match(/arguments:\s*\[\s*\d+field,\s*(?:true|false),\s*(\d+)u64/);
+
+          if (!marketMatch || !outcomeMatch || !amountMatch) continue;
+
+          // Extract bettor address from nested transfer_public_as_signer future
+          // The second argument in the nested future is the signer address
+          const signerMatch = futureValue.match(
+            /transfer_public_as_signer,\s*arguments:\s*\[\s*aleo\w+,\s*(aleo\w+)/
+          );
+          if (!signerMatch) continue;
+
+          events.push({
+            walletAddress: signerMatch[1],
+            marketId: marketMatch[1],
+            outcome: outcomeMatch[1] === "true",
+            amount: parseInt(amountMatch[1]),
+          });
+        }
+      }
+    } catch {
+      // Skip block on error
+      continue;
+    }
+  }
+
+  return { events, newHeight: endHeight };
+}
+
+/**
+ * Upsert bet events into the user_positions table.
+ * Adds amounts to existing positions rather than overwriting.
+ */
+async function indexBetEvents(events: BetEvent[]): Promise<number> {
+  let indexed = 0;
+  for (const event of events) {
+    // Get existing position
+    const { data: existing } = await supabase
+      .from("user_positions")
+      .select("yes_amount, no_amount")
+      .eq("wallet_address", event.walletAddress)
+      .eq("market_id", event.marketId)
+      .single();
+
+    const currentYes = Number(existing?.yes_amount ?? 0);
+    const currentNo = Number(existing?.no_amount ?? 0);
+
+    const { error } = await supabase.from("user_positions").upsert(
+      {
+        wallet_address: event.walletAddress,
+        market_id: event.marketId,
+        yes_amount: event.outcome ? currentYes + event.amount : currentYes,
+        no_amount: event.outcome ? currentNo : currentNo + event.amount,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "wallet_address,market_id" },
+    );
+
+    if (!error) indexed++;
+  }
+  return indexed;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -235,10 +355,16 @@ Deno.serve(async (_req: Request) => {
       last_indexed_at: new Date().toISOString(),
     });
 
-    // 5. Update indexer state
+    // 5. Scan recent blocks for bet transactions → update user_positions
+    const lastBlockHeight = Number(_cursor?.last_block_height ?? 0);
+    const { events: betEvents, newHeight } = await scanBetTransactions(lastBlockHeight);
+    const positionsIndexed = betEvents.length > 0 ? await indexBetEvents(betEvents) : 0;
+
+    // 6. Update indexer state
     await supabase.from("indexer_state").upsert({
       id: true,
       last_market_count: marketIds.length,
+      last_block_height: newHeight,
       last_run_at: new Date().toISOString(),
       last_error: null,
     });
@@ -248,6 +374,7 @@ Deno.serve(async (_req: Request) => {
         ok: true,
         indexed,
         snapshots: snapshotsInserted,
+        positions: positionsIndexed,
         markets: marketIds.length,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
