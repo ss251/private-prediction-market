@@ -96,3 +96,17 @@ export async function markRevealed(marketId: string, nonce: string): Promise<voi
     tx.onerror = () => reject(tx.error);
   });
 }
+
+/**
+ * Generate a random nonce for commitment.
+ * Returns a field-compatible random value (248 bits).
+ */
+export function generateNonce(): string {
+  const array = new Uint8Array(31);
+  crypto.getRandomValues(array);
+  let value = 0n;
+  for (const byte of array) {
+    value = (value << 8n) | BigInt(byte);
+  }
+  return `${value}field`;
+}

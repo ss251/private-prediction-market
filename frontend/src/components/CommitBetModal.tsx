@@ -9,8 +9,7 @@ import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import { getPublicBalance, formatCredits, PROGRAM_ID } from "../lib/aleo";
-import { saveCommitment } from "../lib/commitmentStore";
-import { generateNonce } from "../lib/commitReveal";
+import { saveCommitment, generateNonce } from "../lib/commitmentStore";
 
 interface CommitBetModalProps {
   market: {
