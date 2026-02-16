@@ -9,10 +9,8 @@ import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import { getPublicBalance, formatCredits, PROGRAM_ID } from "../lib/aleo";
-import {
-  generateNonce,
-  saveCommitment,
-} from "../lib/commitReveal";
+import { saveCommitment } from "../lib/commitmentStore";
+import { generateNonce } from "../lib/commitReveal";
 
 interface CommitBetModalProps {
   market: {
@@ -63,12 +61,10 @@ export function CommitBetModal({
     if (!address || !executeTransaction || amountMicrocredits < 1000) return;
 
     const nonce = generateNonce();
+    const commitInput = `{ market_id: ${market.id}, direction: ${outcome === "yes"}, amount: ${amountMicrocredits}u64, nonce: ${nonce} }`;
 
     const resultTxId = await execute(
       async () => {
-        // Build commitment struct for hashing
-        const commitInput = `{ market_id: ${market.id}, direction: ${outcome === "yes"}, amount: ${amountMicrocredits}u64, nonce: ${nonce} }`;
-
         const result = await executeTransaction({
           program: PROGRAM_ID,
           function: "commit_bet",
@@ -90,9 +86,10 @@ export function CommitBetModal({
         direction: outcome === "yes",
         amount: amountMicrocredits,
         nonce,
-        commitTxId: resultTxId,
-        timestamp: Date.now(),
-        status: "committed",
+        commitHash: commitInput,
+        txId: resultTxId,
+        createdAt: Date.now(),
+        revealed: false,
       });
       if (onCommitted) onCommitted();
     }

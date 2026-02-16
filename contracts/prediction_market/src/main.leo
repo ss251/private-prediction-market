@@ -749,16 +749,19 @@ program prediction_market_test004.aleo {
         Mapping::set(commitments, commitment_hash, 0field);
     }
 
-    // Reclaim unrevealed commitment after reveal deadline
+    // Reclaim unrevealed commitment after reveal deadline.
+    // User passes the locked amount; finalize verifies it matches on-chain.
     async transition reclaim_commitment(
-        public commitment_hash: field
+        public commitment_hash: field,
+        public amount: u64
     ) -> Future {
-        let transfer_future: Future = credits.aleo/transfer_public(self.signer, 0u64); // placeholder, real amount in finalize
-        return finalize_reclaim_commitment(commitment_hash, self.signer, transfer_future);
+        let transfer_future: Future = credits.aleo/transfer_public(self.signer, amount);
+        return finalize_reclaim_commitment(commitment_hash, amount, self.signer, transfer_future);
     }
 
     async function finalize_reclaim_commitment(
         commitment_hash: field,
+        claimed_amount: u64,
         caller: address,
         transfer: Future
     ) {
@@ -769,6 +772,10 @@ program prediction_market_test004.aleo {
         // Verify caller is owner
         let owner: address = Mapping::get(commitment_owners, commitment_hash);
         assert_eq(caller, owner);
+
+        // Verify claimed amount matches locked amount
+        let locked_amount: u64 = Mapping::get(commitment_amounts, commitment_hash);
+        assert_eq(claimed_amount, locked_amount);
 
         // Verify reveal deadline has passed
         let deadline: u32 = Mapping::get(reveal_deadline, market_id);
