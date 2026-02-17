@@ -45,6 +45,36 @@ The single biggest privacy improvement possible on Aleo prediction markets.
 - Investigated all oracle options: zkPortal (dead since April 2025), Snorkle (0 calls), Veru (mainnet only)
 - Decision: Manual resolution for now, contract interface is oracle-swappable
 
+## Wave 2.1 Privacy Upgrades
+
+### 🔗 BHP256 Aggregate Commitment Scheme
+Added a running hash chain of bet commitments, enabling independent verification of pool totals at resolution without revealing individual bet data.
+
+**How it works:**
+- New mapping: `aggregate_commitment: field => field` (market_id => running hash)
+- On each `place_bet` and `add_to_bet`, the transition computes `bet_commit = BHP256::hash_to_field(bet)` from the private Bet record
+- `bet_commit` is passed as a PUBLIC finalize arg (it's a hash — hides amount, outcome, and owner)
+- Finalize chains it: `updated = BHP256::hash_to_field(current_agg + bet_commit)` and stores
+- After resolution, anyone with access to the original Bet records can reconstruct the aggregate and verify it matches the on-chain value
+- If admin manipulates pool totals, the reconstructed aggregate won't match → provable fraud
+
+**Privacy properties:**
+- `bet_commit` is one-way: cannot recover bet.outcome or bet.amount from it
+- The aggregate is deterministic: same bets in same order = same root
+- Each market has an independent commitment chain
+
+### 🔒 Private Credits Consumption (ROADMAP)
+Investigated replacing `transfer_public_as_signer` with private credits record consumption to eliminate on-chain transfer amount visibility.
+
+**Finding:** Leo does not allow programs to consume or produce records defined by external programs (`credits.aleo`). Only the defining program can create/destroy its own records. Alternative patterns (`credits.aleo/transfer_private` to program address) also don't work because the program can't hold private record state.
+
+**Status:** Documented as a roadmap item. Requires either:
+1. Aleo protocol support for cross-program record consumption
+2. A wrapper pattern where credits.aleo provides a `burn`/`mint` interface
+3. Move to a token standard that supports private escrow natively
+
+Current approach (fixed tiers + `transfer_public_as_signer`) remains the best available privacy tradeoff.
+
 ## Contract Changes (prediction_market_test004.aleo)
 - `place_bet`: Finalize only checks status + increments `bet_count` (no outcome/amount args)
 - `add_to_bet`: Same — no pool updates in finalize

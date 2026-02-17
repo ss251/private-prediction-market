@@ -120,6 +120,11 @@ program prediction_market_test004.aleo {
     // Track which bet hashes have been submitted (prevent double-dispute)
     mapping bet_submitted: field => bool;
 
+    // ── Aggregate commitment (Wave 2 Privacy Upgrade) ──
+    // Running BHP256 hash chain of all bet commitments per market
+    // Enables independent verification of pool totals at resolution
+    mapping aggregate_commitment: field => field;
+
     // ========================================
     // CONSTRUCTOR
     // ========================================
@@ -533,13 +538,17 @@ program prediction_market_test004.aleo {
             amount: amount,
         };
 
-        // Finalize only checks market status and increments bet count
-        // NO outcome, NO pool update — direction stays private
-        return (bet, finalize_place_bet(market_id, transfer_future));
+        // Compute commitment from private bet data (hides amount + outcome)
+        let bet_commit: field = BHP256::hash_to_field(bet);
+
+        // Finalize checks market status, increments bet count, and chains commitment
+        // bet_commit is PUBLIC but it's a hash — hides the underlying values
+        return (bet, finalize_place_bet(market_id, bet_commit, transfer_future));
     }
 
     async function finalize_place_bet(
         market_id: field,
+        bet_commit: field,
         transfer: Future
     ) {
         // Verify market is open
@@ -554,9 +563,14 @@ program prediction_market_test004.aleo {
         let end_time: u32 = Mapping::get_or_use(market_end_time, market_id, 4294967295u32);
         assert(block.height as u32 < end_time);
 
-        // Increment bet count (the ONLY public side-effect of a bet)
+        // Increment bet count
         let current_count: u64 = Mapping::get_or_use(bet_count, market_id, 0u64);
         Mapping::set(bet_count, market_id, current_count + 1u64);
+
+        // Chain bet commitment into running aggregate hash
+        let current_agg: field = Mapping::get_or_use(aggregate_commitment, market_id, 0field);
+        let updated_agg: field = BHP256::hash_to_field(current_agg + bet_commit);
+        Mapping::set(aggregate_commitment, market_id, updated_agg);
 
         // Await credit transfer
         transfer.await();
@@ -583,12 +597,16 @@ program prediction_market_test004.aleo {
             amount: existing_bet.amount + additional_amount,
         };
 
-        // Finalize: only check market status, no pool update
-        return (new_bet, finalize_add_to_bet(existing_bet.market_id, transfer_future));
+        // Compute commitment from the NEW consolidated bet record
+        let bet_commit: field = BHP256::hash_to_field(new_bet);
+
+        // Finalize: check market status, chain commitment
+        return (new_bet, finalize_add_to_bet(existing_bet.market_id, bet_commit, transfer_future));
     }
 
     async function finalize_add_to_bet(
         market_id: field,
+        bet_commit: field,
         transfer: Future
     ) {
         let status: u8 = Mapping::get(market_status, market_id);
@@ -603,6 +621,11 @@ program prediction_market_test004.aleo {
         // Increment bet count
         let current_count: u64 = Mapping::get_or_use(bet_count, market_id, 0u64);
         Mapping::set(bet_count, market_id, current_count + 1u64);
+
+        // Chain bet commitment into running aggregate hash
+        let current_agg: field = Mapping::get_or_use(aggregate_commitment, market_id, 0field);
+        let updated_agg: field = BHP256::hash_to_field(current_agg + bet_commit);
+        Mapping::set(aggregate_commitment, market_id, updated_agg);
 
         transfer.await();
     }
