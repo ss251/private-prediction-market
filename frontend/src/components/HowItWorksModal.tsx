@@ -13,17 +13,17 @@ const slides = [
     step: "1",
     title: "Pick a Market",
     description:
-      "Browse prediction markets and choose Yes or No based on what you think will happen. Odds shift as others bet.",
+      "Browse prediction markets and choose Yes or No. Your bet direction is encrypted in a private Bet record — it never appears on-chain.",
     privacy:
-      "On Aleo, your wallet address is never linked to your bet — no one can see who placed it.",
+      "Your wallet address and bet direction are never linked on-chain. No one can see who bet or which side they chose.",
     icon: (
       <div className="flex gap-3 items-center justify-center">
         <div className="glass-card px-5 py-4 flex flex-col items-center gap-2 w-28">
-          <span className="text-2xl font-heading text-white">50%</span>
+          <span className="text-2xl font-heading text-white">?</span>
           <span className="text-emerald-400 text-sm font-bold">Yes</span>
         </div>
         <div className="glass-card px-5 py-4 flex flex-col items-center gap-2 w-28">
-          <span className="text-2xl font-heading text-white">50%</span>
+          <span className="text-2xl font-heading text-white">?</span>
           <span className="text-rose-400 text-sm font-bold">No</span>
         </div>
       </div>
@@ -31,15 +31,15 @@ const slides = [
   },
   {
     step: "2",
-    title: "Place an Anonymous Bet",
+    title: "Bet Privately with ZK",
     description:
-      "Bet with Aleo credits. Your transaction generates a zero-knowledge proof — so only aggregate pool totals are public.",
+      "Choose from 5 fixed credit tiers. Your bet generates a ZK proof and a Pedersen commitment. Only the bet count increments on-chain — no direction, no amount.",
     privacy:
-      "Your wallet identity stays hidden — no one can link your address to a bet. Direction and amount are visible, but not who placed it.",
+      "Bet direction is encrypted in your Bet record, never passed as a finalize argument. Pedersen128 commitments aggregate homomorphically so pool totals stay hidden until resolution.",
     icon: (
       <div className="flex flex-col items-center gap-3">
         <div className="glass-card px-6 py-4 flex flex-col items-center gap-1 relative">
-          <span className="font-heading text-3xl text-white">100</span>
+          <span className="font-heading text-3xl text-white">Tier 3</span>
           <span className="text-xs text-gray-500">credits</span>
           <div className="absolute -top-2 -right-2 w-6 h-6 bg-privacy/20 border-2 border-privacy/40 rounded-md flex items-center justify-center">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D4A054" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -51,24 +51,43 @@ const slides = [
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
-          ZK proof generated
+          Pedersen commitment + ZK proof
         </div>
       </div>
     ),
   },
   {
     step: "3",
-    title: "Collect Winnings",
+    title: "Resolution & Verification",
     description:
-      "When the market resolves, claim your share of the winning pool. Your payout is calculated from your private bet record.",
+      "At resolution, pool totals and blinding sums are published. An on-chain assert verifies they match the committed bets. A 1000-block dispute window follows.",
     privacy:
-      "Your position is only revealed when you choose to claim.",
+      "Pool totals are only revealed at resolution (deferred aggregate revelation) — not during betting. Anyone can verify via Pedersen commitments.",
+    icon: (
+      <div className="flex flex-col items-center gap-3">
+        <div className="glass-card px-6 py-4 flex flex-col items-center gap-2">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#D4A054" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 11 12 14 22 4" />
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+          </svg>
+          <span className="text-xs text-gray-500">On-chain verification</span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    step: "4",
+    title: "Claim in ZK",
+    description:
+      "Claim your winnings — payout is computed entirely inside a ZK circuit from your private Bet record. No one learns your position.",
+    privacy:
+      "Your payout amount is computed in ZK. The claim transaction proves eligibility without revealing your bet direction or exact amount.",
     icon: (
       <div className="flex flex-col items-center gap-3">
         <div className="glass-card px-6 py-4 flex flex-col items-center gap-1 border-emerald-500/30">
           <span className="text-xs text-gray-500">You win</span>
-          <span className="font-heading text-3xl text-emerald-400">250</span>
-          <span className="text-xs text-gray-500">credits</span>
+          <span className="font-heading text-3xl text-emerald-400">🔒</span>
+          <span className="text-xs text-gray-500">computed in ZK</span>
         </div>
       </div>
     ),

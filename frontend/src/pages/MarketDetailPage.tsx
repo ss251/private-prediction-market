@@ -272,35 +272,60 @@ export function MarketDetailPage() {
               </span>
             </h2>
 
-            <div className="space-y-3 mb-4">
+            <div className="grid gap-3 mb-4 sm:grid-cols-2">
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-privacy/5 border border-privacy/10">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D4A054" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-privacy mb-1">Private</p>
+                  <ul className="text-xs text-gray-500 space-y-0.5">
+                    <li>• Bettor identity (ZK proofs)</li>
+                    <li>• <strong className="text-emerald-400">Bet direction</strong> — encrypted in Bet record</li>
+                    <li>• Payout amount (computed in ZK)</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/5 border border-blue-500/10">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-blue-400 mb-1">Deferred</p>
+                  <ul className="text-xs text-gray-500 space-y-0.5">
+                    <li>• Pool totals — <strong className="text-blue-400">only at resolution</strong></li>
+                    <li>• No per-bet pool updates on-chain</li>
+                  </ul>
+                </div>
+              </div>
+
               <div className="flex items-start gap-3 p-3 rounded-lg bg-rose-500/5 border border-rose-500/10">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                   <circle cx="12" cy="12" r="3" />
                 </svg>
                 <div>
-                  <p className="text-sm font-medium text-gray-300 mb-1">Public on-chain</p>
+                  <p className="text-sm font-medium text-gray-300 mb-1">Public</p>
                   <ul className="text-xs text-gray-500 space-y-0.5">
-                    <li>• Pool totals — <strong className="text-amber-400">only at resolution</strong>, not during betting</li>
-                    <li>• Market outcome and resolution</li>
-                    <li>• Bet count per market (no direction or amounts)</li>
-                    <li>• Credit transfer amounts (but not linked to direction)</li>
+                    <li>• Bet count (no direction/amount)</li>
+                    <li>• Credit transfers (tier-restricted)</li>
+                    <li>• Market outcome at resolution</li>
                   </ul>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-privacy/5 border border-privacy/10">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D4A054" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+                  <polyline points="9 11 12 14 22 4" />
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
                 </svg>
                 <div>
-                  <p className="text-sm font-medium text-gray-300 mb-1">Private (ZK-protected)</p>
+                  <p className="text-sm font-medium text-emerald-400 mb-1">Verifiable</p>
                   <ul className="text-xs text-gray-500 space-y-0.5">
-                    <li>• Your wallet address — never linked to bets</li>
-                    <li>• <strong className="text-emerald-400">Bet direction</strong> — encrypted in your Bet record, never in finalize args</li>
-                    <li>• Your identity as a bettor</li>
-                    <li>• Your encrypted Bet record (only you hold the view key)</li>
-                    <li>• Pool composition during betting — totals only revealed at resolution</li>
+                    <li>• Pedersen128 homomorphic commitments</li>
+                    <li>• 1000-block dispute window</li>
                   </ul>
                 </div>
               </div>
@@ -310,11 +335,9 @@ export function MarketDetailPage() {
               <p>
                 {"Aleo's "}
                 <code className="text-gray-400 bg-navy-900 px-1 py-0.5 rounded">place_bet</code>
-                {" transition uses "}
-                <code className="text-gray-400 bg-navy-900 px-1 py-0.5 rounded">self.signer</code>
-                {" to create a private "}
+                {" creates a private "}
                 <code className="text-gray-400 bg-navy-900 px-1 py-0.5 rounded">Bet</code>
-                {" record encrypted to your address. Unlike other Aleo prediction markets, pool totals are never updated during betting — they are only revealed on-chain at resolution time (deferred aggregate revelation). This means bet direction never appears in any finalize argument."}
+                {" record encrypted to your address. Bet direction never appears in finalize arguments — pool totals use deferred aggregate revelation via Pedersen commitments, only published at resolution."}
               </p>
               <p>
                 {"Verify on the "}
