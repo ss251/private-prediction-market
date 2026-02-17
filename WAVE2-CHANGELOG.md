@@ -47,6 +47,21 @@ The single biggest privacy improvement possible on Aleo prediction markets.
 
 ## Wave 2.1 Privacy Upgrades
 
+### 🔐 BHP256 Commitment Nonce (Brute-Force Resistance)
+Added a private `nonce_value: u128` field to the `Bet` record to prevent commitment brute-forcing.
+
+**Problem**: With only 10 possible (outcome × tier) combinations per known owner/market_id, an observer could enumerate all BHP256 hashes in milliseconds, revealing bet direction and amount from the public `bet_commit`. This made the commitment scheme security theater.
+
+**Fix**: The `Bet` record now includes a random `nonce_value: u128` field. Since `BHP256::hash_to_field(bet)` hashes the full record including nonce, the search space expands from ~10 to 2^128 — computationally infeasible to brute-force.
+
+**Changes**:
+- `Bet` record: added `nonce_value: u128` field
+- `place_bet` transition: accepts `private nonce_value: u128` parameter
+- `add_to_bet` transition: accepts `private nonce_value: u128` parameter (fresh nonce for consolidated record)
+- Frontend must generate random u128 nonces (e.g., `crypto.getRandomValues`)
+
+**Tradeoff**: During disputes (`submit_bet_proof`), the nonce is revealed along with the full Bet record. This is acceptable because dispute submission is voluntary and the bet is already settled.
+
 ### 🔗 BHP256 Aggregate Commitment Scheme
 Added a running hash chain of bet commitments, enabling independent verification of pool totals at resolution without revealing individual bet data.
 

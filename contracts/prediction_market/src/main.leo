@@ -58,6 +58,7 @@ program prediction_market_test004.aleo {
         market_id: field,
         outcome: bool,      // true = YES, false = NO — PRIVATE, never appears in finalize
         amount: u64,        // PRIVATE, never appears in finalize
+        nonce_value: u128,  // Random nonce for commitment hiding (2^128 search space)
     }
 
     // ========================================
@@ -526,7 +527,8 @@ program prediction_market_test004.aleo {
     async transition place_bet(
         public market_id: field,
         private outcome: bool,
-        public amount: u64
+        public amount: u64,
+        private nonce_value: u128
     ) -> (Bet, Future) {
         assert(amount >= MIN_BET);
 
@@ -546,6 +548,7 @@ program prediction_market_test004.aleo {
             market_id: market_id,
             outcome: outcome,
             amount: amount,
+            nonce_value: nonce_value,
         };
 
         // Compute commitment from private bet data (hides amount + outcome)
@@ -589,7 +592,7 @@ program prediction_market_test004.aleo {
 
     // Add additional amount to an existing bet (consolidates into single record)
     // Amount must be a fixed tier (Concern 3)
-    async transition add_to_bet(existing_bet: Bet, public additional_amount: u64) -> (Bet, Future) {
+    async transition add_to_bet(existing_bet: Bet, public additional_amount: u64, private nonce_value: u128) -> (Bet, Future) {
         assert(additional_amount >= MIN_BET);
 
         // Concern 3: Enforce fixed denomination tiers for additional amount
@@ -606,6 +609,7 @@ program prediction_market_test004.aleo {
             market_id: existing_bet.market_id,
             outcome: existing_bet.outcome,
             amount: existing_bet.amount + additional_amount,
+            nonce_value: nonce_value,
         };
 
         // Compute commitment from the NEW consolidated bet record

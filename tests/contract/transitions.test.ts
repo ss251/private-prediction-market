@@ -45,6 +45,7 @@ describe("place_bet transition (Concern 3: Fixed Tiers)", () => {
       "1field",
       "true",
       "1000u64",    // TIER_1
+      "12345u128",  // nonce
     ]);
     expect(result.stdout).toContain("place_bet");
   });
@@ -54,6 +55,7 @@ describe("place_bet transition (Concern 3: Fixed Tiers)", () => {
       "1field",
       "false",
       "5000u64",    // TIER_2
+      "99999u128",  // nonce
     ]);
     expect(result.success).toBe(true);
   });
@@ -63,6 +65,7 @@ describe("place_bet transition (Concern 3: Fixed Tiers)", () => {
       "1field",
       "true",
       "10000u64",   // TIER_3
+      "77777u128",  // nonce
     ]);
     expect(result.success).toBe(true);
   });
@@ -72,6 +75,7 @@ describe("place_bet transition (Concern 3: Fixed Tiers)", () => {
       "1field",
       "true",
       "50000u64",   // TIER_4
+      "42u128",     // nonce
     ]);
     expect(result.success).toBe(true);
   });
@@ -81,6 +85,7 @@ describe("place_bet transition (Concern 3: Fixed Tiers)", () => {
       "1field",
       "false",
       "100000u64",  // TIER_5
+      "1u128",      // nonce
     ]);
     expect(result.success).toBe(true);
   });
@@ -90,6 +95,7 @@ describe("place_bet transition (Concern 3: Fixed Tiers)", () => {
       "1field",
       "true",
       "999u64",
+      "123u128",    // nonce
     ]);
     expect(result.success).toBe(false);
   });
@@ -99,6 +105,7 @@ describe("place_bet transition (Concern 3: Fixed Tiers)", () => {
       "1field",
       "true",
       "2000u64",
+      "456u128",    // nonce
     ]);
     expect(result.success).toBe(false);
   });
@@ -108,6 +115,7 @@ describe("place_bet transition (Concern 3: Fixed Tiers)", () => {
       "1field",
       "true",
       "0u64",
+      "789u128",    // nonce
     ]);
     expect(result.success).toBe(false);
   });
@@ -117,6 +125,7 @@ describe("place_bet transition (Concern 3: Fixed Tiers)", () => {
       "1field",
       "true",
       "1000000u64",
+      "101112u128", // nonce
     ]);
     expect(result.success).toBe(false);
   });

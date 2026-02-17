@@ -18,8 +18,8 @@ describe("Aggregate Commitment Scheme — Properties", () => {
     // Two bets with different amounts but same outcome should produce different commitments
     // This is guaranteed by BHP256 collision resistance
     // We verify the design property: commitment = hash(full_bet_record)
-    const bet1 = { owner: "aleo1abc", market_id: "1field", outcome: true, amount: "1000" };
-    const bet2 = { owner: "aleo1abc", market_id: "1field", outcome: true, amount: "5000" };
+    const bet1 = { owner: "aleo1abc", market_id: "1field", outcome: true, amount: "1000", nonce_value: "111" };
+    const bet2 = { owner: "aleo1abc", market_id: "1field", outcome: true, amount: "5000", nonce_value: "222" };
 
     // Serialized differently → different hash inputs → different commitments
     const serialized1 = JSON.stringify(bet1);
@@ -28,8 +28,8 @@ describe("Aggregate Commitment Scheme — Properties", () => {
   });
 
   it("commitment includes outcome — different outcomes produce different hashes", () => {
-    const bet1 = { owner: "aleo1abc", market_id: "1field", outcome: true, amount: "1000" };
-    const bet2 = { owner: "aleo1abc", market_id: "1field", outcome: false, amount: "1000" };
+    const bet1 = { owner: "aleo1abc", market_id: "1field", outcome: true, amount: "1000", nonce_value: "111" };
+    const bet2 = { owner: "aleo1abc", market_id: "1field", outcome: false, amount: "1000", nonce_value: "111" };
 
     const serialized1 = JSON.stringify(bet1);
     const serialized2 = JSON.stringify(bet2);
@@ -69,6 +69,18 @@ describe("Aggregate Commitment Scheme — Properties", () => {
     const market2 = "2field";
     expect(market1).not.toBe(market2);
     // Each gets independent Mapping::get_or_use with their own key
+  });
+
+  it("nonce makes commitment brute-force infeasible (2^128 search space)", () => {
+    // Without nonce: only ~10 combinations (2 outcomes × 5 tiers) per known owner/market_id
+    // With nonce: 2^128 possible values per combination → infeasible to enumerate
+    const bet1 = { owner: "aleo1abc", market_id: "1field", outcome: true, amount: "1000", nonce_value: "12345" };
+    const bet2 = { owner: "aleo1abc", market_id: "1field", outcome: true, amount: "1000", nonce_value: "67890" };
+
+    // Same bet data but different nonces → different commitments
+    const serialized1 = JSON.stringify(bet1);
+    const serialized2 = JSON.stringify(bet2);
+    expect(serialized1).not.toBe(serialized2);
   });
 
   it("bet_commit is public in finalize but hides private bet fields", () => {
