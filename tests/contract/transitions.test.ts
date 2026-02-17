@@ -139,22 +139,26 @@ describe("close_betting transition", () => {
 });
 
 describe("resolve_market transition", () => {
-  it("accepts YES outcome", () => {
+  it("accepts YES outcome with Pedersen blindings", () => {
     const result = expectLeoRunSuccess("resolve_market", [
       "1field",
       "true",
       "50000u64",
       "30000u64",
+      "1scalar",
+      "2scalar",
     ]);
     expect(result.output).toContain("resolve_market");
   });
 
-  it("accepts NO outcome", () => {
+  it("accepts NO outcome with Pedersen blindings", () => {
     const result = expectLeoRunSuccess("resolve_market", [
       "1field",
       "false",
       "30000u64",
       "50000u64",
+      "3scalar",
+      "4scalar",
     ]);
     expect(result.output).toContain("resolve_market");
   });
@@ -194,12 +198,14 @@ describe("submit_bet_proof transition (Concern 2: Dispute mechanism)", () => {
 });
 
 describe("resolve_disputed transition (Concern 2: Re-resolution)", () => {
-  it("accepts valid re-resolution inputs", () => {
+  it("accepts valid re-resolution inputs with Pedersen blindings", () => {
     const result = expectLeoRunSuccess("resolve_disputed", [
       "1field",
       "true",
       "50000u64",
       "30000u64",
+      "5scalar",
+      "6scalar",
     ]);
     expect(result.output).toContain("resolve_disputed");
   });
@@ -245,11 +251,13 @@ describe("set_market_oracle transition", () => {
 });
 
 describe("resolve_with_oracle transition", () => {
-  it("accepts valid market_id", () => {
+  it("accepts valid market_id with Pedersen blindings", () => {
     const result = expectLeoRunSuccess("resolve_with_oracle", [
       "1field",
       "50000u64",
       "30000u64",
+      "7scalar",
+      "8scalar",
     ]);
     expect(result.output).toContain("resolve_with_oracle");
   });

@@ -62,21 +62,37 @@ Added a private `nonce_value: u128` field to the `Bet` record to prevent commitm
 
 **Tradeoff**: During disputes (`submit_bet_proof`), the nonce is revealed along with the full Bet record. This is acceptable because dispute submission is voluntary and the bet is already settled.
 
-### 🔗 BHP256 Aggregate Commitment Scheme
-Added a running hash chain of bet commitments, enabling independent verification of pool totals at resolution without revealing individual bet data.
+### 🔗 Pedersen128 Homomorphic Aggregate Commitment Scheme (replaces BHP256 hash chain)
+Replaced the BHP256 hash chain aggregate commitment with Pedersen128 homomorphic commitments, enabling **cryptographic verification** of pool totals at resolution — not just fraud detection, but mathematical proof.
 
 **How it works:**
-- New mapping: `aggregate_commitment: field => field` (market_id => running hash)
-- On each `place_bet` and `add_to_bet`, the transition computes `bet_commit = BHP256::hash_to_field(bet)` from the private Bet record
-- `bet_commit` is passed as a PUBLIC finalize arg (it's a hash — hides amount, outcome, and owner)
-- Finalize chains it: `updated = BHP256::hash_to_field(current_agg + bet_commit)` and stores
-- After resolution, anyone with access to the original Bet records can reconstruct the aggregate and verify it matches the on-chain value
-- If admin manipulates pool totals, the reconstructed aggregate won't match → provable fraud
+- New mappings: `yes_aggregate_commit: field => group` and `no_aggregate_commit: field => group`
+- On each `place_bet` and `add_to_bet`, the transition computes TWO Pedersen commitments:
+  - `yes_contrib = Pedersen128::commit_to_group(yes_amount, blinding_yes)`
+  - `no_contrib = Pedersen128::commit_to_group(no_amount, blinding_no)`
+  - One commits the real amount, the other commits 0 — both look like random group elements
+- Finalize adds them homomorphically: `agg = agg + contrib` (group addition)
+- At resolution, admin provides `sum_blinding_yes` and `sum_blinding_no` (from Supabase)
+- Finalize recomputes `Pedersen128::commit_to_group(total, sum_blinding)` and asserts equality
+- If admin lies about totals OR blindings, the assertion fails → **provably secure**
+
+**Key security property (homomorphic verification):**
+```
+Σ commit(amount_i, r_i) = commit(Σ amount_i, Σ r_i)
+```
+This means the on-chain aggregate (sum of individual commits) MUST equal the commit of the claimed totals. No way to fake it without breaking discrete log.
 
 **Privacy properties:**
-- `bet_commit` is one-way: cannot recover bet.outcome or bet.amount from it
-- The aggregate is deterministic: same bets in same order = same root
-- Each market has an independent commitment chain
+- Both `yes_contrib` and `no_contrib` are always non-zero random group elements
+- `commit(0, r) = h^r` is indistinguishable from `commit(amount, r')` without discrete log
+- Observer sees two random group elements per bet — cannot determine bet direction
+- Strictly stronger privacy than BHP256 hash chain (which was order-dependent and leaked structure)
+
+**Changes from BHP256 scheme:**
+- Removed: `aggregate_commitment` mapping, `CommitPair` struct, BHP256 hash chain logic
+- Added: `yes_aggregate_commit` and `no_aggregate_commit` mappings (group type)
+- `resolve_market`, `resolve_with_oracle`, `resolve_disputed`: now take `sum_blinding_yes: scalar` and `sum_blinding_no: scalar` parameters
+- Blindings derived from bet nonce: `blinding_yes = nonce as scalar`, `blinding_no = (nonce + 1) as scalar`
 
 ### 🔒 Private Credits Consumption (ROADMAP)
 Investigated replacing `transfer_public_as_signer` with private credits record consumption to eliminate on-chain transfer amount visibility.

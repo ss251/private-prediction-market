@@ -41,11 +41,7 @@ program prediction_market_test004.aleo {
     // STRUCTS
     // ========================================
 
-    // Wrapper for chaining two fields into BHP256 (single-arg hash)
-    struct CommitPair {
-        prev: field,
-        new_val: field,
-    }
+    // (CommitPair struct removed — replaced by Pedersen commitments)
 
     // ========================================
     // RECORDS (Private State)
@@ -131,10 +127,11 @@ program prediction_market_test004.aleo {
     // Track which bet hashes have been submitted (prevent double-dispute)
     mapping bet_submitted: field => bool;
 
-    // ── Aggregate commitment (Wave 2 Privacy Upgrade) ──
-    // Running BHP256 hash chain of all bet commitments per market
-    // Enables independent verification of pool totals at resolution
-    mapping aggregate_commitment: field => field;
+    // ── Pedersen Aggregate Commitments (Wave 2 Privacy Upgrade) ──
+    // Homomorphic Pedersen commitments — additively aggregate per market
+    // Enables cryptographic verification of pool totals at resolution
+    mapping yes_aggregate_commit: field => group;  // market_id => aggregate Pedersen commitment for YES bets
+    mapping no_aggregate_commit: field => group;   // market_id => aggregate Pedersen commitment for NO bets
 
     // ========================================
     // CONSTRUCTOR
@@ -222,9 +219,11 @@ program prediction_market_test004.aleo {
         public market_id: field,
         public outcome: bool,
         public total_yes: u64,
-        public total_no: u64
+        public total_no: u64,
+        public sum_blinding_yes: scalar,
+        public sum_blinding_no: scalar
     ) -> Future {
-        return finalize_resolve_market(market_id, outcome, total_yes, total_no, self.caller);
+        return finalize_resolve_market(market_id, outcome, total_yes, total_no, sum_blinding_yes, sum_blinding_no, self.caller);
     }
 
     async function finalize_resolve_market(
@@ -232,6 +231,8 @@ program prediction_market_test004.aleo {
         outcome: bool,
         total_yes: u64,
         total_no: u64,
+        sum_blinding_yes: scalar,
+        sum_blinding_no: scalar,
         caller: address
     ) {
         let admin_addr: address = Mapping::get(admin, true);
@@ -239,6 +240,14 @@ program prediction_market_test004.aleo {
 
         let status: u8 = Mapping::get(market_status, market_id);
         assert_eq(status, STATUS_CLOSED);
+
+        // Verify pool totals against Pedersen aggregate commitments
+        let agg_yes: group = Mapping::get_or_use(yes_aggregate_commit, market_id, 0group);
+        let agg_no: group = Mapping::get_or_use(no_aggregate_commit, market_id, 0group);
+        let expected_yes: group = Pedersen128::commit_to_group(total_yes, sum_blinding_yes);
+        let expected_no: group = Pedersen128::commit_to_group(total_no, sum_blinding_no);
+        assert_eq(agg_yes, expected_yes);
+        assert_eq(agg_no, expected_no);
 
         // Store outcome
         Mapping::set(market_outcome, market_id, outcome);
@@ -290,15 +299,19 @@ program prediction_market_test004.aleo {
     async transition resolve_with_oracle(
         public market_id: field,
         public total_yes: u64,
-        public total_no: u64
+        public total_no: u64,
+        public sum_blinding_yes: scalar,
+        public sum_blinding_no: scalar
     ) -> Future {
-        return finalize_resolve_with_oracle(market_id, total_yes, total_no);
+        return finalize_resolve_with_oracle(market_id, total_yes, total_no, sum_blinding_yes, sum_blinding_no);
     }
 
     async function finalize_resolve_with_oracle(
         market_id: field,
         total_yes: u64,
-        total_no: u64
+        total_no: u64,
+        sum_blinding_yes: scalar,
+        sum_blinding_no: scalar
     ) {
         let status: u8 = Mapping::get(market_status, market_id);
         assert_eq(status, STATUS_CLOSED);
@@ -315,6 +328,14 @@ program prediction_market_test004.aleo {
         );
 
         let yes_wins: bool = attested.data >= threshold;
+
+        // Verify pool totals against Pedersen aggregate commitments
+        let agg_yes: group = Mapping::get_or_use(yes_aggregate_commit, market_id, 0group);
+        let agg_no: group = Mapping::get_or_use(no_aggregate_commit, market_id, 0group);
+        let expected_yes: group = Pedersen128::commit_to_group(total_yes, sum_blinding_yes);
+        let expected_no: group = Pedersen128::commit_to_group(total_no, sum_blinding_no);
+        assert_eq(agg_yes, expected_yes);
+        assert_eq(agg_no, expected_no);
 
         Mapping::set(market_outcome, market_id, yes_wins);
         Mapping::set(market_status, market_id, STATUS_RESOLVED);
@@ -478,9 +499,11 @@ program prediction_market_test004.aleo {
         public market_id: field,
         public outcome: bool,
         public total_yes: u64,
-        public total_no: u64
+        public total_no: u64,
+        public sum_blinding_yes: scalar,
+        public sum_blinding_no: scalar
     ) -> Future {
-        return finalize_resolve_disputed(market_id, outcome, total_yes, total_no, self.caller);
+        return finalize_resolve_disputed(market_id, outcome, total_yes, total_no, sum_blinding_yes, sum_blinding_no, self.caller);
     }
 
     async function finalize_resolve_disputed(
@@ -488,6 +511,8 @@ program prediction_market_test004.aleo {
         outcome: bool,
         total_yes: u64,
         total_no: u64,
+        sum_blinding_yes: scalar,
+        sum_blinding_no: scalar,
         caller: address
     ) {
         let admin_addr: address = Mapping::get(admin, true);
@@ -496,6 +521,14 @@ program prediction_market_test004.aleo {
         // Only disputed markets can be re-resolved
         let status: u8 = Mapping::get(market_status, market_id);
         assert_eq(status, STATUS_DISPUTED);
+
+        // Verify pool totals against Pedersen aggregate commitments
+        let agg_yes: group = Mapping::get_or_use(yes_aggregate_commit, market_id, 0group);
+        let agg_no: group = Mapping::get_or_use(no_aggregate_commit, market_id, 0group);
+        let expected_yes: group = Pedersen128::commit_to_group(total_yes, sum_blinding_yes);
+        let expected_no: group = Pedersen128::commit_to_group(total_no, sum_blinding_no);
+        assert_eq(agg_yes, expected_yes);
+        assert_eq(agg_no, expected_no);
 
         // Update with corrected values
         Mapping::set(market_outcome, market_id, outcome);
@@ -551,17 +584,26 @@ program prediction_market_test004.aleo {
             nonce_value: nonce_value,
         };
 
-        // Compute commitment from private bet data (hides amount + outcome)
-        let bet_commit: field = BHP256::hash_to_field(bet);
+        // Derive two distinct blindings from nonce
+        let blinding_yes: scalar = nonce_value as scalar;
+        let blinding_no: scalar = (nonce_value + 1u128) as scalar;
 
-        // Finalize checks market status, increments bet count, and chains commitment
-        // bet_commit is PUBLIC but it's a hash — hides the underlying values
-        return (bet, finalize_place_bet(market_id, bet_commit, transfer_future));
+        // Conditional amounts (ZK-hidden — observer can't tell which is real)
+        let yes_amount: u64 = outcome ? amount : 0u64;
+        let no_amount: u64 = outcome ? 0u64 : amount;
+
+        // Pedersen commitments — BOTH are always non-zero group elements
+        let yes_contrib: group = Pedersen128::commit_to_group(yes_amount, blinding_yes);
+        let no_contrib: group = Pedersen128::commit_to_group(no_amount, blinding_no);
+
+        // Finalize checks market status, increments bet count, and adds to aggregate commitments
+        return (bet, finalize_place_bet(market_id, yes_contrib, no_contrib, transfer_future));
     }
 
     async function finalize_place_bet(
         market_id: field,
-        bet_commit: field,
+        yes_contrib: group,
+        no_contrib: group,
         transfer: Future
     ) {
         // Verify market is open
@@ -580,11 +622,11 @@ program prediction_market_test004.aleo {
         let current_count: u64 = Mapping::get_or_use(bet_count, market_id, 0u64);
         Mapping::set(bet_count, market_id, current_count + 1u64);
 
-        // Chain bet commitment into running aggregate hash
-        let current_agg: field = Mapping::get_or_use(aggregate_commitment, market_id, 0field);
-        let pair: CommitPair = CommitPair { prev: current_agg, new_val: bet_commit };
-        let updated_agg: field = BHP256::hash_to_field(pair);
-        Mapping::set(aggregate_commitment, market_id, updated_agg);
+        // Homomorphic addition of Pedersen commitments
+        let agg_yes: group = Mapping::get_or_use(yes_aggregate_commit, market_id, 0group);
+        let agg_no: group = Mapping::get_or_use(no_aggregate_commit, market_id, 0group);
+        Mapping::set(yes_aggregate_commit, market_id, agg_yes + yes_contrib);
+        Mapping::set(no_aggregate_commit, market_id, agg_no + no_contrib);
 
         // Await credit transfer
         transfer.await();
@@ -612,16 +654,26 @@ program prediction_market_test004.aleo {
             nonce_value: nonce_value,
         };
 
-        // Compute commitment from the NEW consolidated bet record
-        let bet_commit: field = BHP256::hash_to_field(new_bet);
+        // Derive two distinct blindings from nonce
+        let blinding_yes: scalar = nonce_value as scalar;
+        let blinding_no: scalar = (nonce_value + 1u128) as scalar;
 
-        // Finalize: check market status, chain commitment
-        return (new_bet, finalize_add_to_bet(existing_bet.market_id, bet_commit, transfer_future));
+        // Conditional amounts — only the additional amount is committed
+        let yes_amount: u64 = existing_bet.outcome ? additional_amount : 0u64;
+        let no_amount: u64 = existing_bet.outcome ? 0u64 : additional_amount;
+
+        // Pedersen commitments
+        let yes_contrib: group = Pedersen128::commit_to_group(yes_amount, blinding_yes);
+        let no_contrib: group = Pedersen128::commit_to_group(no_amount, blinding_no);
+
+        // Finalize: check market status, add to aggregate commitments
+        return (new_bet, finalize_add_to_bet(existing_bet.market_id, yes_contrib, no_contrib, transfer_future));
     }
 
     async function finalize_add_to_bet(
         market_id: field,
-        bet_commit: field,
+        yes_contrib: group,
+        no_contrib: group,
         transfer: Future
     ) {
         let status: u8 = Mapping::get(market_status, market_id);
@@ -637,11 +689,11 @@ program prediction_market_test004.aleo {
         let current_count: u64 = Mapping::get_or_use(bet_count, market_id, 0u64);
         Mapping::set(bet_count, market_id, current_count + 1u64);
 
-        // Chain bet commitment into running aggregate hash
-        let current_agg: field = Mapping::get_or_use(aggregate_commitment, market_id, 0field);
-        let pair: CommitPair = CommitPair { prev: current_agg, new_val: bet_commit };
-        let updated_agg: field = BHP256::hash_to_field(pair);
-        Mapping::set(aggregate_commitment, market_id, updated_agg);
+        // Homomorphic addition of Pedersen commitments
+        let agg_yes: group = Mapping::get_or_use(yes_aggregate_commit, market_id, 0group);
+        let agg_no: group = Mapping::get_or_use(no_aggregate_commit, market_id, 0group);
+        Mapping::set(yes_aggregate_commit, market_id, agg_yes + yes_contrib);
+        Mapping::set(no_aggregate_commit, market_id, agg_no + no_contrib);
 
         transfer.await();
     }
