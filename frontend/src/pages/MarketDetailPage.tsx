@@ -461,7 +461,7 @@ export function MarketDetailPage() {
           market={market}
           isOpen={true}
           onClose={handleModalClose}
-          onBetPlaced={() => refetchPositions()}
+          onBetPlaced={() => { refetch(); refetchPositions(); }}
           initialOutcome={selectedOutcome}
         />
       )}

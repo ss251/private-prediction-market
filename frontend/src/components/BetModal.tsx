@@ -102,10 +102,12 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
     );
 
     if (resultTxId && address) {
-      // Report position + update pool aggregates in Supabase (non-blocking)
-      // Pool totals are NOT on-chain during betting — Supabase is the source of truth
-      upsertUserPosition(address, market.id, outcome === "yes", amountMicrocredits).catch(() => {});
-      incrementPoolTotal(market.id, outcome === "yes", amountMicrocredits).catch(() => {});
+      // Report position + update pool aggregates in Supabase, then refetch
+      // Await both so the UI has fresh data when onBetPlaced triggers refetch
+      await Promise.all([
+        upsertUserPosition(address, market.id, outcome === "yes", amountMicrocredits).catch((e) => console.error("upsert position failed:", e)),
+        incrementPoolTotal(market.id, outcome === "yes", amountMicrocredits).catch((e) => console.error("increment pool failed:", e)),
+      ]);
       if (onBetPlaced) onBetPlaced();
     }
   };

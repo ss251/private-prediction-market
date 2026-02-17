@@ -35,7 +35,9 @@ function parseRecords(rawRecords: unknown[]): OnChainPosition[] {
     try {
       const data = rec as RawRecord;
       if (!data.market_id || !data.amount) continue;
-      const marketId = String(data.market_id).replace(/field$/, "");
+      // Keep the "field" suffix to match Supabase market_id format (e.g. "1field")
+      let marketId = String(data.market_id).replace(/\.private$/, "").replace(/\.public$/, "");
+      if (!marketId.endsWith("field")) marketId = marketId + "field";
       const outcome = String(data.outcome) === "true";
       const amount = BigInt(String(data.amount).replace(/u64$/, ""));
       const existing = byMarket.get(marketId) ?? { yes: 0n, no: 0n };
@@ -64,7 +66,8 @@ export function useUserPositions(marketIds: string[]) {
   const [verifiedData, setVerifiedData] = useState<OnChainPosition[] | null>(null);
   const [verifyLoading, setVerifyLoading] = useState(false);
 
-  const normalizedIds = marketIds.map((id) => id.replace(/field$/, ""));
+  // Keep market IDs as-is (e.g. "1field") to match Supabase market_id format
+  const normalizedIds = marketIds;
 
   // Primary: Supabase query (instant, no popup)
   const { data: supabasePositions, isLoading, refetch } = useQuery({
@@ -77,7 +80,7 @@ export function useUserPositions(marketIds: string[]) {
 
   // Convert Supabase rows to OnChainPosition format
   const supabaseData: OnChainPosition[] = (supabasePositions ?? []).map((sp) => ({
-    marketId: sp.marketId.replace(/field$/, ""),
+    marketId: sp.marketId,
     yesAmount: BigInt(sp.yesAmount),
     noAmount: BigInt(sp.noAmount),
   }));
