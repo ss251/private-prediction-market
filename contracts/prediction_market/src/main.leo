@@ -38,6 +38,16 @@ program prediction_market_test004.aleo {
     const DISPUTE_THRESHOLD: u64 = 5u64;
 
     // ========================================
+    // STRUCTS
+    // ========================================
+
+    // Wrapper for chaining two fields into BHP256 (single-arg hash)
+    struct CommitPair {
+        prev: field,
+        new_val: field,
+    }
+
+    // ========================================
     // RECORDS (Private State)
     // ========================================
 
@@ -569,7 +579,8 @@ program prediction_market_test004.aleo {
 
         // Chain bet commitment into running aggregate hash
         let current_agg: field = Mapping::get_or_use(aggregate_commitment, market_id, 0field);
-        let updated_agg: field = BHP256::hash_to_field(current_agg + bet_commit);
+        let pair: CommitPair = CommitPair { prev: current_agg, new_val: bet_commit };
+        let updated_agg: field = BHP256::hash_to_field(pair);
         Mapping::set(aggregate_commitment, market_id, updated_agg);
 
         // Await credit transfer
@@ -624,7 +635,8 @@ program prediction_market_test004.aleo {
 
         // Chain bet commitment into running aggregate hash
         let current_agg: field = Mapping::get_or_use(aggregate_commitment, market_id, 0field);
-        let updated_agg: field = BHP256::hash_to_field(current_agg + bet_commit);
+        let pair: CommitPair = CommitPair { prev: current_agg, new_val: bet_commit };
+        let updated_agg: field = BHP256::hash_to_field(pair);
         Mapping::set(aggregate_commitment, market_id, updated_agg);
 
         transfer.await();
