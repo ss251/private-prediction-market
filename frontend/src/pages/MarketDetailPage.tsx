@@ -17,15 +17,13 @@ import {
   PROGRAM_ID,
 } from "../lib/aleo";
 import { PoolHistoryChart } from "../components/PoolHistoryChart";
-import { CommitBetModal } from "../components/CommitBetModal";
-import { RevealBetModal } from "../components/RevealBetModal";
 import { useMarkets, type DisplayMarket } from "../hooks/useMarkets";
 import {
   useUserPositions,
   type OnChainPosition,
 } from "../hooks/useUserPositions";
 
-type ModalType = "bet" | "claim" | "refund" | "resolve" | "commit" | "reveal";
+type ModalType = "bet" | "claim" | "refund" | "resolve";
 
 const STATUS_TO_NUM: Record<string, (typeof MarketStatus)[keyof typeof MarketStatus]> = {
   open: MarketStatus.OPEN,
@@ -364,18 +362,6 @@ export function MarketDetailPage() {
                 Your bet is encrypted via ZK proof
               </div>
 
-              {/* Commit-reveal option */}
-              <div className="mt-3 pt-3 border-t border-navy-600">
-                <p className="text-[11px] text-gray-500 mb-2">
-                  Or use commit-reveal for extra privacy:
-                </p>
-                <button
-                  onClick={() => setActiveModal("commit")}
-                  className="w-full py-2 rounded-md bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:border-violet-500/40 text-sm font-bold transition-colors"
-                >
-                  🔒 Private Commit Bet
-                </button>
-              </div>
             </div>
           )}
 
@@ -549,24 +535,6 @@ export function MarketDetailPage() {
         />
       )}
 
-      {activeModal === "commit" && (
-        <CommitBetModal
-          market={market}
-          isOpen={true}
-          onClose={handleModalClose}
-          onCommitted={() => refetchPositions()}
-        />
-      )}
-
-      {activeModal === "reveal" && (
-        <RevealBetModal
-          marketId={market.id}
-          question={market.question}
-          isOpen={true}
-          onClose={handleModalClose}
-          onRevealed={() => refetchPositions()}
-        />
-      )}
     </div>
   );
 }
