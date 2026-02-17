@@ -28,18 +28,32 @@ interface RawRecord {
   amount?: string;
 }
 
+/** Extract data fields from a wallet record (handles nested `data` property or flat). */
+function extractRecordData(rec: unknown): RawRecord | null {
+  if (!rec || typeof rec !== "object") return null;
+  const obj = rec as Record<string, unknown>;
+  // Some wallets nest fields under `data`
+  const data = (obj.data && typeof obj.data === "object" ? obj.data : obj) as Record<string, unknown>;
+  if (!data.market_id && !data.amount) return null;
+  return {
+    market_id: data.market_id != null ? String(data.market_id) : undefined,
+    outcome: data.outcome != null ? String(data.outcome) : undefined,
+    amount: data.amount != null ? String(data.amount) : undefined,
+  };
+}
+
 /** Parse wallet records into positions (used only by verifyOnChain). */
 function parseRecords(rawRecords: unknown[]): OnChainPosition[] {
   const byMarket = new Map<string, { yes: bigint; no: bigint }>();
   for (const rec of rawRecords) {
     try {
-      const data = rec as RawRecord;
-      if (!data.market_id || !data.amount) continue;
+      const data = extractRecordData(rec);
+      if (!data?.market_id || !data.amount) continue;
       // Keep the "field" suffix to match Supabase market_id format (e.g. "1field")
       let marketId = String(data.market_id).replace(/\.private$/, "").replace(/\.public$/, "");
       if (!marketId.endsWith("field")) marketId = marketId + "field";
-      const outcome = String(data.outcome) === "true";
-      const amount = BigInt(String(data.amount).replace(/u64$/, ""));
+      const outcome = String(data.outcome).replace(/\.private$/, "") === "true";
+      const amount = BigInt(String(data.amount).replace(/u64$/, "").replace(/\.private$/, ""));
       const existing = byMarket.get(marketId) ?? { yes: 0n, no: 0n };
       if (outcome) existing.yes += amount;
       else existing.no += amount;
@@ -98,8 +112,12 @@ export function useUserPositions(marketIds: string[]) {
     setVerifyLoading(true);
     try {
       const rawRecords = await requestRecords(PROGRAM_ID);
+      console.log("[syncFromChain] rawRecords:", JSON.stringify(rawRecords, (_k, v) => typeof v === "bigint" ? v.toString() : v, 2));
       const positions = parseRecords(rawRecords as unknown[]);
+      console.log("[syncFromChain] parsed positions:", positions);
+      console.log("[syncFromChain] normalizedIds:", normalizedIds);
       const relevant = positions.filter((p) => normalizedIds.includes(p.marketId));
+      console.log("[syncFromChain] relevant:", relevant);
       setVerifiedData(relevant);
 
       // Persist to Supabase so future loads are instant
