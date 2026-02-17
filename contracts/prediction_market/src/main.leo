@@ -16,12 +16,26 @@ program prediction_market_test004.aleo {
     const STATUS_CLOSED: u8 = 1u8;
     const STATUS_RESOLVED: u8 = 2u8;
     const STATUS_CANCELLED: u8 = 3u8;
+    const STATUS_DISPUTED: u8 = 4u8;
 
     // Limits
     const MIN_BET: u64 = 1000u64; // 0.001 credits minimum
 
     // Fee in basis points (2% = 200 bps)
     const FEE_BPS: u64 = 200u64;
+
+    // Fixed denomination betting tiers (Concern 3: hide exact bet sizes)
+    const TIER_1: u64 = 1000u64;
+    const TIER_2: u64 = 5000u64;
+    const TIER_3: u64 = 10000u64;
+    const TIER_4: u64 = 50000u64;
+    const TIER_5: u64 = 100000u64;
+
+    // Dispute window: ~1000 blocks after resolution
+    const DISPUTE_BLOCKS: u32 = 1000u32;
+
+    // Dispute threshold: if dispute_count exceeds this, market is flagged
+    const DISPUTE_THRESHOLD: u64 = 5u64;
 
     // ========================================
     // RECORDS (Private State)
@@ -40,7 +54,7 @@ program prediction_market_test004.aleo {
     // MAPPINGS (Public State)
     // ========================================
 
-    // Market status: 0=open, 1=closed, 2=resolved, 3=cancelled
+    // Market status: 0=open, 1=closed, 2=resolved, 3=cancelled, 4=disputed
     mapping market_status: field => u8;
 
     // Pool totals per market — ONLY SET AT RESOLUTION, not during betting
@@ -97,6 +111,14 @@ program prediction_market_test004.aleo {
 
     // Oracle: whether market uses oracle resolution (market_id => bool)
     mapping oracle_enabled: field => bool;
+
+    // ── Dispute mechanism mappings (Concern 2) ──
+    // Block height when dispute window closes
+    mapping dispute_window_end: field => u32;
+    // Number of disputes submitted for a market
+    mapping dispute_count: field => u64;
+    // Track which bet hashes have been submitted (prevent double-dispute)
+    mapping bet_submitted: field => bool;
 
     // ========================================
     // CONSTRUCTOR
@@ -179,6 +201,7 @@ program prediction_market_test004.aleo {
     // Resolve market with outcome AND final pool totals (deferred revelation)
     // Pool totals are provided by the admin/oracle from off-chain aggregates (Supabase)
     // This is the ONLY time pool totals become public on-chain
+    // Now also opens a dispute window for trust verification (Concern 2)
     async transition resolve_market(
         public market_id: field,
         public outcome: bool,
@@ -214,6 +237,11 @@ program prediction_market_test004.aleo {
         let fee_amount: u64 = (total_pool * FEE_BPS) / 10000u64;
         Mapping::set(collected_fees, market_id, fee_amount);
         Mapping::set(estimated_fees, market_id, fee_amount);
+
+        // Open dispute window (Concern 2)
+        let window_end: u32 = block.height as u32 + DISPUTE_BLOCKS;
+        Mapping::set(dispute_window_end, market_id, window_end);
+        Mapping::set(dispute_count, market_id, 0u64);
     }
 
     // Configure oracle parameters for a market (admin only)
@@ -283,6 +311,11 @@ program prediction_market_test004.aleo {
         let fee_amount: u64 = (total_pool * FEE_BPS) / 10000u64;
         Mapping::set(collected_fees, market_id, fee_amount);
         Mapping::set(estimated_fees, market_id, fee_amount);
+
+        // Open dispute window (Concern 2)
+        let window_end: u32 = block.height as u32 + DISPUTE_BLOCKS;
+        Mapping::set(dispute_window_end, market_id, window_end);
+        Mapping::set(dispute_count, market_id, 0u64);
     }
 
     // Cancel a market (admin only)
@@ -324,6 +357,10 @@ program prediction_market_test004.aleo {
 
         let fee_amount: u64 = Mapping::get(collected_fees, market_id);
         assert_eq(claimed_fee_amount, fee_amount);
+
+        // Ensure dispute window has ended before withdrawing fees
+        let window_end: u32 = Mapping::get_or_use(dispute_window_end, market_id, 0u32);
+        assert(block.height as u32 >= window_end);
 
         Mapping::set(fees_withdrawn, market_id, true);
         transfer.await();
@@ -375,12 +412,100 @@ program prediction_market_test004.aleo {
     }
 
     // ========================================
+    // DISPUTE MECHANISM (Concern 2)
+    // ========================================
+
+    // Submit a bet proof during dispute window to verify pool totals
+    // Transition: proves ownership of a valid Bet record (ZK proof)
+    // Finalize: tracks bet_hash, increments dispute counter
+    // If threshold exceeded, market enters DISPUTED status
+    async transition submit_bet_proof(bet: Bet) -> Future {
+        // Compute unique hash of the bet record in the transition (private access)
+        let bet_hash: field = BHP256::hash_to_field(bet);
+
+        // Verify bet is valid (non-zero amount)
+        assert(bet.amount > 0u64);
+
+        return finalize_submit_bet_proof(bet.market_id, bet_hash);
+    }
+
+    async function finalize_submit_bet_proof(
+        market_id: field,
+        bet_hash: field
+    ) {
+        // Market must be resolved
+        let status: u8 = Mapping::get(market_status, market_id);
+        assert_eq(status, STATUS_RESOLVED);
+
+        // Dispute window must be open
+        let window_end: u32 = Mapping::get(dispute_window_end, market_id);
+        assert(block.height as u32 < window_end);
+
+        // Prevent double-submission of same bet
+        let already_submitted: bool = Mapping::get_or_use(bet_submitted, bet_hash, false);
+        assert(!already_submitted);
+        Mapping::set(bet_submitted, bet_hash, true);
+
+        // Increment dispute count
+        let current_count: u64 = Mapping::get_or_use(dispute_count, market_id, 0u64);
+        let new_count: u64 = current_count + 1u64;
+        Mapping::set(dispute_count, market_id, new_count);
+
+        // If disputes exceed threshold, flag market as DISPUTED
+        if (new_count >= DISPUTE_THRESHOLD) {
+            Mapping::set(market_status, market_id, STATUS_DISPUTED);
+        }
+    }
+
+    // Admin can re-resolve a disputed market with corrected totals
+    async transition resolve_disputed(
+        public market_id: field,
+        public outcome: bool,
+        public total_yes: u64,
+        public total_no: u64
+    ) -> Future {
+        return finalize_resolve_disputed(market_id, outcome, total_yes, total_no, self.caller);
+    }
+
+    async function finalize_resolve_disputed(
+        market_id: field,
+        outcome: bool,
+        total_yes: u64,
+        total_no: u64,
+        caller: address
+    ) {
+        let admin_addr: address = Mapping::get(admin, true);
+        assert_eq(caller, admin_addr);
+
+        // Only disputed markets can be re-resolved
+        let status: u8 = Mapping::get(market_status, market_id);
+        assert_eq(status, STATUS_DISPUTED);
+
+        // Update with corrected values
+        Mapping::set(market_outcome, market_id, outcome);
+        Mapping::set(yes_pool, market_id, total_yes);
+        Mapping::set(no_pool, market_id, total_no);
+        Mapping::set(market_status, market_id, STATUS_RESOLVED);
+
+        // Recalculate fees
+        let total_pool: u64 = total_yes + total_no;
+        let fee_amount: u64 = (total_pool * FEE_BPS) / 10000u64;
+        Mapping::set(collected_fees, market_id, fee_amount);
+        Mapping::set(estimated_fees, market_id, fee_amount);
+
+        // Reset dispute window
+        let window_end: u32 = block.height as u32 + DISPUTE_BLOCKS;
+        Mapping::set(dispute_window_end, market_id, window_end);
+        Mapping::set(dispute_count, market_id, 0u64);
+    }
+
+    // ========================================
     // USER FUNCTIONS
     // ========================================
 
     // Place a bet on a market — PRIVACY-FIRST DESIGN
     // The outcome (direction) is PRIVATE — it never appears in finalize args
-    // The amount is visible in the credit transfer but NOT linked to a direction
+    // The amount must be a fixed tier (Concern 3: indistinguishable within tiers)
     // Pool totals are NOT updated on-chain — only a bet_count is incremented
     // Live odds are tracked off-chain in Supabase
     async transition place_bet(
@@ -389,6 +514,10 @@ program prediction_market_test004.aleo {
         public amount: u64
     ) -> (Bet, Future) {
         assert(amount >= MIN_BET);
+
+        // Concern 3: Enforce fixed denomination tiers
+        let valid_tier: bool = (amount == TIER_1) || (amount == TIER_2) || (amount == TIER_3) || (amount == TIER_4) || (amount == TIER_5);
+        assert(valid_tier);
 
         // Transfer credits from bettor to program (public transfer)
         let transfer_future: Future = credits.aleo/transfer_public_as_signer(
@@ -434,8 +563,13 @@ program prediction_market_test004.aleo {
     }
 
     // Add additional amount to an existing bet (consolidates into single record)
+    // Amount must be a fixed tier (Concern 3)
     async transition add_to_bet(existing_bet: Bet, public additional_amount: u64) -> (Bet, Future) {
         assert(additional_amount >= MIN_BET);
+
+        // Concern 3: Enforce fixed denomination tiers for additional amount
+        let valid_tier: bool = (additional_amount == TIER_1) || (additional_amount == TIER_2) || (additional_amount == TIER_3) || (additional_amount == TIER_4) || (additional_amount == TIER_5);
+        assert(valid_tier);
 
         let transfer_future: Future = credits.aleo/transfer_public_as_signer(
             prediction_market_test004.aleo,
@@ -473,61 +607,66 @@ program prediction_market_test004.aleo {
         transfer.await();
     }
 
-    // Claim winnings after market resolution
-    // The bet record (private) is consumed — only the claim payout is public
-    // The user's direction is proven correct via ZK proof without revealing it on-chain
+    // Claim winnings after market resolution (Concern 1: NO private data in finalize)
+    // Payout is computed entirely in the transition using private bet fields
+    // Finalize ONLY verifies the public args match on-chain mappings
+    // The claimer's bet direction and size NEVER appear in finalize args
     async transition claim_winnings(
         bet: Bet,
-        public claimed_amount: u64
+        public winning_outcome: bool,
+        public total_yes: u64,
+        public total_no: u64
     ) -> Future {
-        let transfer_future: Future = credits.aleo/transfer_public(bet.owner, claimed_amount);
+        // ZK proof: assert bet is on the winning side (private bet.outcome == public winning_outcome)
+        // Losers cannot pass this assertion — they simply don't call claim_winnings
+        assert(bet.outcome == winning_outcome);
 
+        // Compute payout entirely in transition (private access to bet.amount)
+        let total_pool_u128: u128 = (total_yes as u128) + (total_no as u128);
+        let fee_amount_u128: u128 = (total_pool_u128 * (FEE_BPS as u128)) / 10000u128;
+        let net_pool_u128: u128 = total_pool_u128 - fee_amount_u128;
+        let winning_pool: u64 = winning_outcome ? total_yes : total_no;
+        let payout_u128: u128 = ((bet.amount as u128) * net_pool_u128) / (winning_pool as u128);
+        let payout: u64 = payout_u128 as u64;
+
+        // Transfer payout to bet owner
+        let transfer_future: Future = credits.aleo/transfer_public(bet.owner, payout);
+
+        // Finalize only verifies public args match on-chain state
+        // It never sees bet.outcome or bet.amount
         return finalize_claim_winnings(
             bet.market_id,
-            bet.outcome,
-            bet.amount,
-            claimed_amount,
+            winning_outcome,
+            total_yes,
+            total_no,
             transfer_future
         );
     }
 
     async function finalize_claim_winnings(
         market_id: field,
-        bet_outcome: bool,
-        bet_amount: u64,
-        claimed_amount: u64,
+        winning_outcome: bool,
+        total_yes: u64,
+        total_no: u64,
         transfer: Future
     ) {
         // Verify market is resolved
         let status: u8 = Mapping::get(market_status, market_id);
         assert_eq(status, STATUS_RESOLVED);
 
-        // Get winning outcome
-        let winning_outcome: bool = Mapping::get(market_outcome, market_id);
+        // Verify dispute window has ended (Concern 2: claims only after disputes resolved)
+        let window_end: u32 = Mapping::get_or_use(dispute_window_end, market_id, 0u32);
+        assert(block.height as u32 >= window_end);
 
-        // Check if user won
-        let is_winner: bool = bet_outcome == winning_outcome;
+        // Verify public args match on-chain mappings
+        let actual_outcome: bool = Mapping::get(market_outcome, market_id);
+        assert_eq(winning_outcome, actual_outcome);
 
-        // Get pool totals (published at resolution time)
-        let total_yes: u64 = Mapping::get(yes_pool, market_id);
-        let total_no: u64 = Mapping::get(no_pool, market_id);
-        let total_pool: u64 = total_yes + total_no;
+        let actual_yes: u64 = Mapping::get(yes_pool, market_id);
+        assert_eq(total_yes, actual_yes);
 
-        // Fee calculation
-        let fee_amount: u64 = (total_pool * FEE_BPS) / 10000u64;
-        let net_pool: u64 = total_pool - fee_amount;
-
-        // Winning pool
-        let winning_pool: u64 = winning_outcome ? total_yes : total_no;
-
-        // Calculate payout using u128 to avoid overflow
-        let payout_u128: u128 = ((bet_amount as u128) * (net_pool as u128)) / (winning_pool as u128);
-        let expected_payout: u64 = payout_u128 as u64;
-
-        // Losers get nothing
-        let actual_payout: u64 = is_winner ? expected_payout : 0u64;
-
-        assert_eq(claimed_amount, actual_payout);
+        let actual_no: u64 = Mapping::get(no_pool, market_id);
+        assert_eq(total_no, actual_no);
 
         transfer.await();
     }

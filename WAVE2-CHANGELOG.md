@@ -54,6 +54,38 @@ The single biggest privacy improvement possible on Aleo prediction markets.
 - Removed: Real-time pool updates from user transitions
 - Stripped commit-reveal betting (added complexity without true direction privacy)
 
+## Privacy Hardening (3 Concerns Addressed)
+
+### Concern 1 — Claim Finalize Leak Fix (HIGH PRIORITY)
+**Problem**: `claim_winnings` finalize received `bet_outcome` and `bet_amount` as public args, leaking the claimer's direction and size.
+
+**Fix**: Payout calculation moved entirely into the transition (ZK circuit) which has private access to bet fields. The transition:
+- Asserts `bet.outcome == winning_outcome` (ZK proof the bet won — losers can't call it)
+- Computes payout from private `bet.amount` + public pool data
+- Calls `credits.aleo/transfer_public(bet.owner, payout)`
+
+Finalize ONLY verifies that the public args (`winning_outcome`, `total_yes`, `total_no`) match on-chain mappings. It **never sees** `bet_outcome` or `bet_amount`.
+
+### Concern 2 — Admin Trust / Dispute Mechanism (HIGH PRIORITY)
+**Problem**: Admin was the sole source of pool totals at resolution (from Supabase), with no way to challenge incorrect values.
+
+**Fix**: Added a dispute mechanism:
+- New `submit_bet_proof(bet: Bet)` transition — users submit their private bet records during a dispute window to prove they have real bets
+- `DISPUTE_BLOCKS = 1000` (~few hours) window after resolution
+- If `dispute_count >= DISPUTE_THRESHOLD (5)`, market enters `STATUS_DISPUTED (4)`
+- New `resolve_disputed()` admin function to re-resolve with corrected totals
+- `claim_winnings` blocked until dispute window closes
+- New mappings: `dispute_window_end`, `dispute_count`, `bet_submitted`
+
+### Concern 3 — Public Bet Sizes (MEDIUM)
+**Problem**: `transfer_public_as_signer` reveals exact amounts. While direction is hidden, unique amounts could be correlated.
+
+**Fix**: Fixed denomination betting tiers — bets must be exactly one of:
+- `TIER_1: 1000`, `TIER_2: 5000`, `TIER_3: 10000`, `TIER_4: 50000`, `TIER_5: 100000` microcredits
+- Both `place_bet` and `add_to_bet` enforce tier validation
+- Makes transfers indistinguishable within each tier — observer sees "someone bet 10000 on *something*" but can't link to direction
+- Users wanting larger bets place multiple tier bets (separate transactions)
+
 ## Deployed
 - Contract: `prediction_market_test004.aleo` on Testnet Beta
 - Frontend: https://lasagna-markets.vercel.app

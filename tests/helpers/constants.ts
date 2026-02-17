@@ -9,6 +9,19 @@ export const STATUS_OPEN = 0;
 export const STATUS_CLOSED = 1;
 export const STATUS_RESOLVED = 2;
 export const STATUS_CANCELLED = 3;
+export const STATUS_DISPUTED = 4;
+
+// Dispute constants
+export const DISPUTE_BLOCKS = 1000;
+export const DISPUTE_THRESHOLD = 5n;
+
+// Fixed denomination betting tiers (Concern 3)
+export const TIER_1 = 1000n;
+export const TIER_2 = 5000n;
+export const TIER_3 = 10000n;
+export const TIER_4 = 50000n;
+export const TIER_5 = 100000n;
+export const VALID_TIERS = [TIER_1, TIER_2, TIER_3, TIER_4, TIER_5];
 
 // Fee: 2% = 200 basis points
 export const FEE_BPS = 200n;
