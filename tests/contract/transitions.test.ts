@@ -97,8 +97,10 @@ describe("close_betting transition", () => {
 describe("resolve_market transition", () => {
   it("accepts YES outcome", () => {
     const result = expectLeoRunSuccess("resolve_market", [
-      "1field",   // market_id
-      "true",     // outcome = YES wins
+      "1field",       // market_id
+      "true",         // outcome = YES wins
+      "50000u64",     // total_yes (deferred aggregate)
+      "30000u64",     // total_no (deferred aggregate)
     ]);
     expect(result.output).toContain("resolve_market");
   });
@@ -106,7 +108,9 @@ describe("resolve_market transition", () => {
   it("accepts NO outcome", () => {
     const result = expectLeoRunSuccess("resolve_market", [
       "1field",
-      "false",    // outcome = NO wins
+      "false",        // outcome = NO wins
+      "30000u64",     // total_yes
+      "50000u64",     // total_no
     ]);
     expect(result.output).toContain("resolve_market");
   });
@@ -153,7 +157,11 @@ describe("set_market_oracle transition", () => {
 
 describe("resolve_with_oracle transition", () => {
   it("accepts valid market_id", () => {
-    const result = expectLeoRunSuccess("resolve_with_oracle", ["1field"]);
+    const result = expectLeoRunSuccess("resolve_with_oracle", [
+      "1field",
+      "50000u64",   // total_yes (deferred aggregate)
+      "30000u64",   // total_no (deferred aggregate)
+    ]);
     expect(result.output).toContain("resolve_with_oracle");
   });
 });

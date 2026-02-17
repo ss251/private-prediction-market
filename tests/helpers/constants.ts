@@ -22,5 +22,7 @@ export const ADMIN_ADDRESS =
   "aleo1vuxp3mgw9tq25wzwwdn5vfrym45p444fq7rf9s4krd3rmne7xupqzl906l";
 
 // Contract directory for leo run (absolute path)
+// Use env var or default to local path
 export const CONTRACT_DIR =
-  "/Users/sailesh/Developer/aleo/private-prediction-market/contracts/prediction_market";
+  process.env.CONTRACT_DIR ||
+  "/Users/thescoho/Developer/aleo-hackathon/contracts/prediction_market";
