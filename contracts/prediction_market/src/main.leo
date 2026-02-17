@@ -6,7 +6,7 @@
 import credits.aleo;
 import official_oracle_v2.aleo;
 
-program prediction_market_test004.aleo {
+program prediction_market_test005.aleo {
     // ========================================
     // CONSTANTS
     // ========================================
@@ -571,7 +571,7 @@ program prediction_market_test004.aleo {
 
         // Transfer credits from bettor to program (public transfer)
         let transfer_future: Future = credits.aleo/transfer_public_as_signer(
-            prediction_market_test004.aleo,
+            prediction_market_test005.aleo,
             amount
         );
 
@@ -642,7 +642,7 @@ program prediction_market_test004.aleo {
         assert(valid_tier);
 
         let transfer_future: Future = credits.aleo/transfer_public_as_signer(
-            prediction_market_test004.aleo,
+            prediction_market_test005.aleo,
             additional_amount
         );
 

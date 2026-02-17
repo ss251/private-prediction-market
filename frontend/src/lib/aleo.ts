@@ -7,7 +7,7 @@
 
 const API_URL = "https://api.explorer.provable.com/v1/testnet";
 /** Deployed prediction market program ID on Aleo testnet. */
-export const PROGRAM_ID = "prediction_market_test004.aleo";
+export const PROGRAM_ID = "prediction_market_test005.aleo";
 
 /** Market status constants matching the on-chain contract values. */
 export const MarketStatus = {
