@@ -83,9 +83,11 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
     const resultTxId = await execute(
       async () => {
         const functionName = existingRecord ? "add_to_bet" : "place_bet";
+        // Generate random nonce for Pedersen commitment privacy
+        const nonce = BigInt(Math.floor(Math.random() * 2 ** 64)) * BigInt(Math.floor(Math.random() * 2 ** 64));
         const inputs = existingRecord
-          ? [existingRecord, `${amountMicrocredits}u64`]
-          : [market.id, outcome === "yes" ? "true" : "false", `${amountMicrocredits}u64`];
+          ? [existingRecord, `${amountMicrocredits}u64`, `${nonce}u128`]
+          : [market.id, outcome === "yes" ? "true" : "false", `${amountMicrocredits}u64`, `${nonce}u128`];
 
         const result = await executeTransaction({
           program: PROGRAM_ID,
