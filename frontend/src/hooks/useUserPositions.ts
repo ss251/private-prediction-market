@@ -12,7 +12,7 @@
 import { useCallback, useState } from "react";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchUserPositions } from "../lib/supabase";
+import { fetchUserPositions, upsertUserPositionFull } from "../lib/supabase";
 import { PROGRAM_ID } from "../lib/aleo";
 
 /** Aggregated on-chain position for a single market. */
@@ -86,22 +86,37 @@ export function useUserPositions(marketIds: string[]) {
   const hasFetched = !isLoading && !!address;
 
   /**
-   * Optional: verify positions directly from wallet records.
-   * Triggers a wallet popup — only use when explicitly requested.
+   * Sync positions from wallet records to Supabase.
+   * Triggers a wallet popup, reads on-chain records, persists to DB,
+   * then refetches so future loads are instant.
    */
-  const verifyOnChain = useCallback(async () => {
+  const syncFromChain = useCallback(async () => {
     if (!address || !requestRecords || marketIds.length === 0) return;
     setVerifyLoading(true);
     try {
       const rawRecords = await requestRecords(PROGRAM_ID);
       const positions = parseRecords(rawRecords as unknown[]);
-      setVerifiedData(positions.filter((p) => normalizedIds.includes(p.marketId)));
+      const relevant = positions.filter((p) => normalizedIds.includes(p.marketId));
+      setVerifiedData(relevant);
+
+      // Persist to Supabase so future loads are instant
+      await Promise.all(
+        relevant.map((p) => {
+          const totalYes = Number(p.yesAmount);
+          const totalNo = Number(p.noAmount);
+          // Upsert with the full amounts (replace, not add)
+          return upsertUserPositionFull(address, p.marketId, totalYes, totalNo);
+        }),
+      );
+
+      // Refetch Supabase data so it's in sync
+      await refetch();
     } catch {
-      // User rejected — keep Supabase data
+      // User rejected wallet popup — keep existing data
     } finally {
       setVerifyLoading(false);
     }
-  }, [address, requestRecords, marketIds, normalizedIds]);
+  }, [address, requestRecords, marketIds, normalizedIds, refetch]);
 
   return {
     data,
@@ -111,6 +126,6 @@ export function useUserPositions(marketIds: string[]) {
       setVerifiedData(null);
       await refetch();
     },
-    verifyOnChain,
+    syncFromChain,
   };
 }

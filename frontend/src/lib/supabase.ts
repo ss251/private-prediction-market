@@ -151,6 +151,30 @@ export async function upsertUserPosition(
 }
 
 /**
+ * Replace (not add) a user position in Supabase with absolute amounts.
+ * Used by syncFromChain to seed positions from wallet records.
+ */
+export async function upsertUserPositionFull(
+  walletAddress: string,
+  marketId: string,
+  yesAmount: number,
+  noAmount: number,
+): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase.from("user_positions").upsert(
+    {
+      wallet_address: walletAddress,
+      market_id: marketId,
+      yes_amount: yesAmount,
+      no_amount: noAmount,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "wallet_address,market_id" },
+  );
+  if (error) console.error("Failed to upsert full position:", error);
+}
+
+/**
  * Increment pool totals in Supabase after a bet is placed.
  * Since pool totals are NOT on-chain during betting (deferred aggregate revelation),
  * Supabase is the source of truth for live odds until resolution.

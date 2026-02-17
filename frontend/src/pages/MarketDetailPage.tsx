@@ -73,7 +73,7 @@ export function MarketDetailPage() {
   });
 
   // User positions (auto-fetches on mount)
-  const { data: positions = [], isLoading: positionsLoading, hasFetched: positionsFetched, refetch: refetchPositions } = useUserPositions(
+  const { data: positions = [], isLoading: positionsLoading, hasFetched: positionsFetched, refetch: refetchPositions, syncFromChain } = useUserPositions(
     marketId ? [marketId] : []
   );
   const userPosition: OnChainPosition | null =
@@ -261,95 +261,34 @@ export function MarketDetailPage() {
             </div>
           </div>
 
-          {/* Privacy Disclosure */}
+          {/* Privacy Notice */}
           <div className="detail-section glass-card p-4 sm:p-6">
-            <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 sm:mb-4">
-              <span className="flex items-center gap-2">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D4A054" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-                Privacy Disclosure
-              </span>
-            </h2>
-
-            <div className="grid gap-3 mb-4 sm:grid-cols-2">
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-privacy/5 border border-privacy/10">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D4A054" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-                <div>
-                  <p className="text-sm font-medium text-privacy mb-1">Private</p>
-                  <ul className="text-xs text-gray-500 space-y-0.5">
-                    <li>• Bettor identity (ZK proofs)</li>
-                    <li>• <strong className="text-emerald-400">Bet direction</strong> — encrypted in Bet record</li>
-                    <li>• Payout amount (computed in ZK)</li>
-                  </ul>
-                </div>
+            <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 sm:mb-4">Bet Privacy</h2>
+            <div className="flex items-start gap-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <div className="space-y-2">
+                <p className="text-sm text-gray-300">
+                  Your bet direction is fully private — encrypted in a ZK Bet record and never
+                  revealed in on-chain finalize arguments. Pool totals use deferred aggregate
+                  revelation and are only published at market resolution.
+                </p>
+                <p className="text-xs text-gray-500">
+                  Pedersen128 homomorphic commitments verify pool integrity without exposing
+                  individual bets. Payouts are computed entirely inside the ZK circuit.
+                  A 1000-block dispute window allows community verification after resolution.
+                  {" "}
+                  <a
+                    href={`https://testnet.explorer.provable.com/program/${PROGRAM_ID}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent-light hover:text-accent"
+                  >
+                    Verify on Explorer →
+                  </a>
+                </p>
               </div>
-
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/5 border border-blue-500/10">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
-                <div>
-                  <p className="text-sm font-medium text-blue-400 mb-1">Deferred</p>
-                  <ul className="text-xs text-gray-500 space-y-0.5">
-                    <li>• Pool totals — <strong className="text-blue-400">only at resolution</strong></li>
-                    <li>• No per-bet pool updates on-chain</li>
-                  </ul>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-rose-500/5 border border-rose-500/10">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                <div>
-                  <p className="text-sm font-medium text-gray-300 mb-1">Public</p>
-                  <ul className="text-xs text-gray-500 space-y-0.5">
-                    <li>• Bet count (no direction/amount)</li>
-                    <li>• Credit transfers (tier-restricted)</li>
-                    <li>• Market outcome at resolution</li>
-                  </ul>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
-                  <polyline points="9 11 12 14 22 4" />
-                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                </svg>
-                <div>
-                  <p className="text-sm font-medium text-emerald-400 mb-1">Verifiable</p>
-                  <ul className="text-xs text-gray-500 space-y-0.5">
-                    <li>• Pedersen128 homomorphic commitments</li>
-                    <li>• 1000-block dispute window</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <div className="text-xs text-gray-500 space-y-2">
-              <p>
-                {"Aleo's "}
-                <code className="text-gray-400 bg-navy-900 px-1 py-0.5 rounded">place_bet</code>
-                {" creates a private "}
-                <code className="text-gray-400 bg-navy-900 px-1 py-0.5 rounded">Bet</code>
-                {" record encrypted to your address. Bet direction never appears in finalize arguments — pool totals use deferred aggregate revelation via Pedersen commitments, only published at resolution."}
-              </p>
-              <p>
-                {"Verify on the "}
-                <a
-                  href={`https://testnet.explorer.provable.com/program/${PROGRAM_ID}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-accent-light hover:text-accent"
-                >
-                  Aleo Explorer →
-                </a>
-              </p>
             </div>
           </div>
         </div>
@@ -497,9 +436,19 @@ export function MarketDetailPage() {
                   )}
                 </div>
               ) : (
-                <p className="text-sm text-gray-500 text-center">
-                  {positionsFetched ? "No position in this market." : "Connect wallet to view positions."}
-                </p>
+                <div className="text-center space-y-3">
+                  <p className="text-sm text-gray-500">
+                    {positionsFetched ? "No position found." : "Connect wallet to view positions."}
+                  </p>
+                  {positionsFetched && (
+                    <button
+                      onClick={syncFromChain}
+                      className="text-xs px-3 py-1.5 rounded-md bg-navy-800 border border-navy-600 text-gray-400 hover:text-white hover:border-accent transition-colors"
+                    >
+                      🔄 Sync from wallet
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
