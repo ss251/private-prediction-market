@@ -1,0 +1,84 @@
+name: Create Markets
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: 'Network'
+        required: true
+        default: 'testnet'
+        type: choice
+        options:
+          - testnet
+          - mainnet
+
+env:
+  LEO_VERSION: "3.4.0"
+
+jobs:
+  create:
+    name: Create 5 markets on ${{ inputs.network }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.network }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Leo
+        run: |
+          curl -sSL "https://github.com/ProvableHQ/leo/releases/download/v${LEO_VERSION}/leo-v${LEO_VERSION}-x86_64-unknown-linux-gnu.zip" -o leo.zip
+          unzip -o leo.zip -d leo-bin
+          sudo mv leo-bin/leo /usr/local/bin/leo
+          chmod +x /usr/local/bin/leo
+          leo --version
+
+      - name: Create markets
+        working-directory: contracts/prediction_market
+        env:
+          PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+        run: |
+          COMMON_ARGS="--private-key $PRIVATE_KEY --network ${{ inputs.network }} --endpoint https://api.explorer.provable.com/v1 --broadcast --yes"
+
+          # Market 1: BTC above $70K on Feb 18
+          # end_block=15000000, yes_label=1field (Yes), no_label=2field (No)
+          echo "Creating market 1field (BTC $70K)..."
+          leo execute create_market 1field 15000000u32 1field 2field $COMMON_ARGS
+          echo "✅ Market 1 created"
+          sleep 10
+
+          # Market 2: Anthropic #1 AI model Feb 19
+          # end_block=16712041
+          echo "Creating market 2field (Anthropic)..."
+          leo execute create_market 2field 16712041u32 1field 2field $COMMON_ARGS
+          echo "✅ Market 2 created"
+          sleep 10
+
+          # Market 3: Russia-Ukraine ceasefire by Feb 28
+          # end_block=15139561
+          echo "Creating market 3field (Ceasefire)..."
+          leo execute create_market 3field 15139561u32 1field 2field $COMMON_ARGS
+          echo "✅ Market 3 created"
+          sleep 10
+
+          # Market 4: Fed rate cut March 2026
+          # end_block=19891561
+          echo "Creating market 4field (Fed rate cut)..."
+          leo execute create_market 4field 19891561u32 1field 2field $COMMON_ARGS
+          echo "✅ Market 4 created"
+          sleep 10
+
+          # Market 5: Norway most golds 2026 Olympics
+          # end_block=16712041
+          echo "Creating market 5field (Norway Olympics)..."
+          leo execute create_market 5field 16712041u32 1field 2field $COMMON_ARGS
+          echo "✅ Market 5 created"
+
+      - name: Verify markets
+        run: |
+          echo "Verifying market_count..."
+          curl -s "https://api.explorer.provable.com/v1/testnet/program/prediction_market_test005.aleo/mapping/market_count/true"
+          echo ""
+          echo "Verifying market statuses..."
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s "https://api.explorer.provable.com/v1/testnet/program/prediction_market_test005.aleo/mapping/market_status/${i}field")
+            echo "Market ${i}field status: $STATUS"
+          done
