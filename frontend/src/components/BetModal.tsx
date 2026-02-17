@@ -4,7 +4,7 @@ import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import { getPublicBalance, formatCredits, PROGRAM_ID } from "../lib/aleo";
 import { useBetRecords } from "../hooks/useBetRecords";
-import { upsertUserPosition } from "../lib/supabase";
+import { upsertUserPosition, incrementPoolTotal } from "../lib/supabase";
 
 interface Market {
   id: string;
@@ -100,8 +100,10 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
     );
 
     if (resultTxId && address) {
-      // Report position to Supabase (non-blocking)
+      // Report position + update pool aggregates in Supabase (non-blocking)
+      // Pool totals are NOT on-chain during betting — Supabase is the source of truth
       upsertUserPosition(address, market.id, outcome === "yes", amountMicrocredits).catch(() => {});
+      incrementPoolTotal(market.id, outcome === "yes", amountMicrocredits).catch(() => {});
       if (onBetPlaced) onBetPlaced();
     }
   };
@@ -258,8 +260,9 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
             <span>
-              Your bet is anonymous — your wallet address is never linked to
-              the bet on-chain. Direction, amount, and pool totals are public.
+              Your bet is fully private — direction is encrypted in your Bet record
+              and never appears on-chain. Pool totals are only revealed at resolution.
+              Only a bet count is incremented publicly.
             </span>
           </div>
 

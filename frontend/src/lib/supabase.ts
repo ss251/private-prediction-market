@@ -150,6 +150,38 @@ export async function upsertUserPosition(
   if (error) console.error("Failed to upsert user position:", error);
 }
 
+/**
+ * Increment pool totals in Supabase after a bet is placed.
+ * Since pool totals are NOT on-chain during betting (deferred aggregate revelation),
+ * Supabase is the source of truth for live odds until resolution.
+ */
+export async function incrementPoolTotal(
+  marketId: string,
+  outcome: boolean,
+  amount: number,
+): Promise<void> {
+  if (!supabase) return;
+  // Read current pools
+  const { data: market } = await supabase
+    .from("markets")
+    .select("yes_pool, no_pool")
+    .eq("market_id", marketId)
+    .single();
+
+  const currentYes = Number(market?.yes_pool ?? 0);
+  const currentNo = Number(market?.no_pool ?? 0);
+
+  const newYes = outcome ? currentYes + amount : currentYes;
+  const newNo = outcome ? currentNo : currentNo + amount;
+
+  const { error } = await supabase.from("markets").update({
+    yes_pool: newYes,
+    no_pool: newNo,
+    chain_updated_at: new Date().toISOString(),
+  }).eq("market_id", marketId);
+  if (error) console.error("Failed to increment pool total:", error);
+}
+
 // --- Indexer trigger (fire-and-forget, keeps Supabase in sync with chain) ---
 
 let _indexerStarted = false;

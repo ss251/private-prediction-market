@@ -47,7 +47,12 @@ export function ResolveModal({
         const result = await executeTransaction({
           program: PROGRAM_ID,
           function: "resolve_market",
-          inputs: [marketId, `${outcome}`],
+          inputs: [
+            marketId,
+            `${outcome}`,
+            `${yesPool}u64`,
+            `${noPool}u64`,
+          ],
           fee: 500_000,
         });
         return result?.transactionId ?? "";
@@ -149,8 +154,9 @@ export function ResolveModal({
           </svg>
           <span>
             Only the contract admin can resolve markets. This calls
-            resolve_market on-chain. Winning bettors can then claim their
-            payouts.
+            resolve_market on-chain with the final pool totals — the first
+            time aggregate data appears on-chain. Winning bettors can then
+            claim their payouts.
           </span>
         </div>
 

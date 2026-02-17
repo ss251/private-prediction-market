@@ -281,10 +281,10 @@ export function MarketDetailPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-300 mb-1">Public on-chain</p>
                   <ul className="text-xs text-gray-500 space-y-0.5">
-                    <li>• Pool totals (YES/NO amounts)</li>
-                    <li>• Individual bet direction and amount</li>
+                    <li>• Pool totals — <strong className="text-amber-400">only at resolution</strong>, not during betting</li>
                     <li>• Market outcome and resolution</li>
-                    <li>• Transaction fees and timestamps</li>
+                    <li>• Bet count per market (no direction or amounts)</li>
+                    <li>• Credit transfer amounts (but not linked to direction)</li>
                   </ul>
                 </div>
               </div>
@@ -297,8 +297,10 @@ export function MarketDetailPage() {
                   <p className="text-sm font-medium text-gray-300 mb-1">Private (ZK-protected)</p>
                   <ul className="text-xs text-gray-500 space-y-0.5">
                     <li>• Your wallet address — never linked to bets</li>
+                    <li>• <strong className="text-emerald-400">Bet direction</strong> — encrypted in your Bet record, never in finalize args</li>
                     <li>• Your identity as a bettor</li>
-                    <li>• Your encrypted Bet record (only you hold the key)</li>
+                    <li>• Your encrypted Bet record (only you hold the view key)</li>
+                    <li>• Pool composition during betting — totals only revealed at resolution</li>
                   </ul>
                 </div>
               </div>
@@ -312,7 +314,7 @@ export function MarketDetailPage() {
                 <code className="text-gray-400 bg-navy-900 px-1 py-0.5 rounded">self.signer</code>
                 {" to create a private "}
                 <code className="text-gray-400 bg-navy-900 px-1 py-0.5 rounded">Bet</code>
-                {" record encrypted to your address. The pool update is public, but the record owner is never revealed."}
+                {" record encrypted to your address. Unlike other Aleo prediction markets, pool totals are never updated during betting — they are only revealed on-chain at resolution time (deferred aggregate revelation). This means bet direction never appears in any finalize argument."}
               </p>
               <p>
                 {"Verify on the "}
