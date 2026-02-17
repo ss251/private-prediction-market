@@ -38,39 +38,27 @@ jobs:
         run: |
           COMMON_ARGS="--private-key $PRIVATE_KEY --network ${{ inputs.network }} --endpoint https://api.explorer.provable.com/v1 --broadcast --yes"
 
-          # Market 1: BTC above $70K on Feb 18
-          # end_block=15000000, yes_label=1field (Yes), no_label=2field (No)
-          echo "Creating market 1field (BTC $70K)..."
-          leo execute create_market 1field 15000000u32 1field 2field $COMMON_ARGS
-          echo "✅ Market 1 created"
-          sleep 10
+          # Market 1 was already created in previous run (tx at12vmy2zyk5n8...)
+          # Skip to remaining markets
 
           # Market 2: Anthropic #1 AI model Feb 19
-          # end_block=16712041
           echo "Creating market 2field (Anthropic)..."
-          leo execute create_market 2field 16712041u32 1field 2field $COMMON_ARGS
-          echo "✅ Market 2 created"
-          sleep 10
+          leo execute create_market 2field 16712041u32 1field 2field $COMMON_ARGS || echo "⚠️ Market 2 broadcast attempted (confirmation may lag)"
+          sleep 30
 
           # Market 3: Russia-Ukraine ceasefire by Feb 28
-          # end_block=15139561
           echo "Creating market 3field (Ceasefire)..."
-          leo execute create_market 3field 15139561u32 1field 2field $COMMON_ARGS
-          echo "✅ Market 3 created"
-          sleep 10
+          leo execute create_market 3field 15139561u32 1field 2field $COMMON_ARGS || echo "⚠️ Market 3 broadcast attempted"
+          sleep 30
 
           # Market 4: Fed rate cut March 2026
-          # end_block=19891561
           echo "Creating market 4field (Fed rate cut)..."
-          leo execute create_market 4field 19891561u32 1field 2field $COMMON_ARGS
-          echo "✅ Market 4 created"
-          sleep 10
+          leo execute create_market 4field 19891561u32 1field 2field $COMMON_ARGS || echo "⚠️ Market 4 broadcast attempted"
+          sleep 30
 
           # Market 5: Norway most golds 2026 Olympics
-          # end_block=16712041
           echo "Creating market 5field (Norway Olympics)..."
-          leo execute create_market 5field 16712041u32 1field 2field $COMMON_ARGS
-          echo "✅ Market 5 created"
+          leo execute create_market 5field 16712041u32 1field 2field $COMMON_ARGS || echo "⚠️ Market 5 broadcast attempted"
 
       - name: Verify markets
         run: |
