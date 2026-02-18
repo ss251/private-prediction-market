@@ -235,25 +235,28 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
             )}
           </div>
 
-          {/* Odds display */}
+          {/* Bet info — privacy-aware */}
           <div className="bg-navy-900/60 border border-navy-600 rounded-xl p-3 mb-4">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Current Odds:</span>
-              <span className="text-white font-mono">{currentOdds}x</span>
-            </div>
-            <div className="flex justify-between text-sm mt-1">
-              <span className="text-gray-400">Potential Win:</span>
-              <span className="text-emerald-400 font-mono">
-                {amount
-                  ? (parseFloat(amount) * parseFloat(currentOdds)).toFixed(4)
-                  : "0.00"}{" "}
-                credits
+              <span className="text-gray-400">Your Bet:</span>
+              <span className="text-white font-mono">
+                {amount ? parseFloat(amount).toFixed(4) : "0.00"} credits
               </span>
             </div>
             <div className="flex justify-between text-sm mt-1">
-              <span className="text-gray-400">Pool Size:</span>
-              <span className="text-gray-300 font-mono">
-                {(totalPool / 1_000_000).toFixed(2)} credits
+              <span className="text-gray-400">Direction:</span>
+              <span className={outcome === "yes" ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+                {outcome.toUpperCase()}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 text-sm mt-1">
+              <span className="text-gray-400">Odds & Payout:</span>
+              <span className="text-privacy/60 font-mono text-xs flex items-center gap-1 ml-auto">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                Revealed at resolution
               </span>
             </div>
           </div>
