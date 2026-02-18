@@ -18,7 +18,7 @@ import {
 } from "../lib/aleo";
 import { PoolHistoryChart } from "../components/PoolHistoryChart";
 import { useMarkets, type DisplayMarket } from "../hooks/useMarkets";
-import { formatEndDate, getCountdown } from "../lib/dateFormat";
+import { formatEndDate } from "../lib/dateFormat";
 import {
   useUserPositions,
   type OnChainPosition,
