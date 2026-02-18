@@ -12,10 +12,24 @@ export function formatEndDate(isoDate: string): string {
     const hours = date.getHours().toString().padStart(2, "0");
     const minutes = date.getMinutes().toString().padStart(2, "0");
 
-    // Get timezone abbreviation
-    const tz = new Intl.DateTimeFormat(undefined, { timeZoneName: "short" })
+    // Get timezone abbreviation — try "short" first, fall back to "longOffset" for readable UTC offset
+    let tz = new Intl.DateTimeFormat(undefined, { timeZoneName: "short" })
       .formatToParts(date)
       .find((p) => p.type === "timeZoneName")?.value ?? "";
+
+    // If browser returns generic "GMT+X" style, try to get the IANA zone's long name abbreviation
+    if (tz.startsWith("GMT") || tz.startsWith("UTC")) {
+      const longTz = new Intl.DateTimeFormat(undefined, { timeZoneName: "shortGeneric" })
+        .formatToParts(date)
+        .find((p) => p.type === "timeZoneName")?.value;
+      if (longTz && !longTz.startsWith("GMT") && !longTz.startsWith("UTC")) {
+        tz = longTz;
+      }
+      // Still GMT+X? Format it cleaner: "UTC+7" instead of "GMT+7"
+      else if (tz.startsWith("GMT")) {
+        tz = tz.replace("GMT", "UTC");
+      }
+    }
 
     return `${month} ${day}, ${hours}:${minutes} ${tz}`;
   } catch {
