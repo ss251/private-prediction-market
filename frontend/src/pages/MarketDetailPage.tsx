@@ -179,44 +179,95 @@ export function MarketDetailPage() {
       <div className="grid md:grid-cols-3 gap-4 sm:gap-6">
         {/* Left Column: Main content */}
         <div className="md:col-span-2 space-y-6">
-          {/* Probability Display */}
+          {/* Probability / Privacy Display */}
           <div className="detail-section glass-card p-4 sm:p-6">
-            <div className="flex items-baseline justify-between mb-3 sm:mb-4">
-              <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider">Probability</h2>
-              <span className="text-[11px] sm:text-xs text-gray-600 font-mono">{totalPoolFormatted} credits in pool</span>
-            </div>
+            {isOpen ? (
+              <>
+                <div className="flex items-baseline justify-between mb-3 sm:mb-4">
+                  <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider">Market Pool</h2>
+                  <span className="text-[11px] sm:text-xs text-privacy/60 font-mono flex items-center gap-1">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    Deferred Revelation
+                  </span>
+                </div>
 
-            {/* Large probability display */}
-            <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-5">
-              <div className="text-center py-3 sm:py-4 rounded-md bg-emerald-500/8 border-2 border-emerald-500/15">
-                <div className="font-heading text-2xl sm:text-4xl text-emerald-400 mb-1">{yesPercent.toFixed(1)}%</div>
-                <div className="text-xs sm:text-sm text-emerald-400/70 font-bold">Yes</div>
-              </div>
-              <div className="text-center py-3 sm:py-4 rounded-md bg-rose-500/8 border-2 border-rose-500/15">
-                <div className="font-heading text-2xl sm:text-4xl text-rose-400 mb-1">{noPercent.toFixed(1)}%</div>
-                <div className="text-xs sm:text-sm text-rose-400/70 font-bold">No</div>
-              </div>
-            </div>
+                {/* Private pool display */}
+                <div className="text-center py-6 sm:py-8 rounded-md bg-navy-800/50 border-2 border-privacy/15 mb-4">
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-privacy/70">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                    <span className="font-heading text-lg sm:text-xl text-privacy/80">Pool Hidden</span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-500 max-w-sm mx-auto leading-relaxed">
+                    Pool totals are concealed during active betting to prevent information leakage.
+                    Odds are revealed after betting closes.
+                  </p>
+                </div>
 
-            {/* Pool bar */}
-            <div className="h-3 bg-navy-700 rounded-sm overflow-hidden flex mb-3">
-              <div className="pool-bar-yes transition-all" style={{ width: `${yesPercent}%` }} />
-              <div className="pool-bar-no transition-all" style={{ width: `${noPercent}%` }} />
-            </div>
+                {/* Bet buttons inline */}
+                {connected && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => { setSelectedOutcome("yes"); setActiveModal("bet"); }}
+                      className="py-3 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15 hover:border-emerald-500/40 transition-colors text-emerald-400 font-bold text-sm"
+                    >
+                      Bet Yes
+                    </button>
+                    <button
+                      onClick={() => { setSelectedOutcome("no"); setActiveModal("bet"); }}
+                      className="py-3 rounded-md bg-rose-500/10 border-2 border-rose-500/15 hover:border-rose-500/40 transition-colors text-rose-400 font-bold text-sm"
+                    >
+                      Bet No
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex items-baseline justify-between mb-3 sm:mb-4">
+                  <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider">Probability</h2>
+                  <span className="text-[11px] sm:text-xs text-gray-600 font-mono">{totalPoolFormatted} credits in pool</span>
+                </div>
 
-            <div className="flex justify-between text-xs text-gray-500 font-mono">
-              <span>YES: {formatPool(BigInt(market.yesPool))} credits</span>
-              <span>NO: {formatPool(BigInt(market.noPool))} credits</span>
-            </div>
+                {/* Large probability display — only for non-open markets */}
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-5">
+                  <div className="text-center py-3 sm:py-4 rounded-md bg-emerald-500/8 border-2 border-emerald-500/15">
+                    <div className="font-heading text-2xl sm:text-4xl text-emerald-400 mb-1">{yesPercent.toFixed(1)}%</div>
+                    <div className="text-xs sm:text-sm text-emerald-400/70 font-bold">Yes</div>
+                  </div>
+                  <div className="text-center py-3 sm:py-4 rounded-md bg-rose-500/8 border-2 border-rose-500/15">
+                    <div className="font-heading text-2xl sm:text-4xl text-rose-400 mb-1">{noPercent.toFixed(1)}%</div>
+                    <div className="text-xs sm:text-sm text-rose-400/70 font-bold">No</div>
+                  </div>
+                </div>
+
+                {/* Pool bar */}
+                <div className="h-3 bg-navy-700 rounded-sm overflow-hidden flex mb-3">
+                  <div className="pool-bar-yes transition-all" style={{ width: `${yesPercent}%` }} />
+                  <div className="pool-bar-no transition-all" style={{ width: `${noPercent}%` }} />
+                </div>
+
+                <div className="flex justify-between text-xs text-gray-500 font-mono">
+                  <span>YES: {formatPool(BigInt(market.yesPool))} credits</span>
+                  <span>NO: {formatPool(BigInt(market.noPool))} credits</span>
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Pool History Chart */}
-          <div className="detail-section glass-card p-4 sm:p-6">
-            <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 sm:mb-4">
-              Probability Over Time
-            </h2>
-            <PoolHistoryChart marketId={marketId} />
-          </div>
+          {/* Pool History Chart — only show when pool is revealed */}
+          {!isOpen && (
+            <div className="detail-section glass-card p-4 sm:p-6">
+              <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 sm:mb-4">
+                Probability Over Time
+              </h2>
+              <PoolHistoryChart marketId={marketId} />
+            </div>
+          )}
 
           {/* Resolved outcome banner */}
           {isResolved && market.outcome !== undefined && (
@@ -242,7 +293,17 @@ export function MarketDetailPage() {
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Total Volume</span>
-                <span className="text-white font-mono">{formatCredits(BigInt(totalPool))} credits</span>
+                {isOpen ? (
+                  <span className="text-privacy/60 font-mono text-xs flex items-center gap-1">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    Hidden
+                  </span>
+                ) : (
+                  <span className="text-white font-mono">{formatCredits(BigInt(totalPool))} credits</span>
+                )}
               </div>
               {market.endTime && (
                 <div className="flex justify-between text-sm">
@@ -302,21 +363,15 @@ export function MarketDetailPage() {
               <div className="space-y-3">
                 <button
                   onClick={() => { setSelectedOutcome("yes"); setActiveModal("bet"); }}
-                  className="w-full flex items-center justify-between px-4 py-3 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15 hover:border-emerald-500/40 transition-colors group"
+                  className="w-full flex items-center justify-center px-4 py-3 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15 hover:border-emerald-500/40 transition-colors"
                 >
-                  <span className="text-emerald-400 font-bold">Yes</span>
-                  <span className="text-emerald-400 font-mono font-bold group-hover:text-emerald-300">
-                    {yesPercent.toFixed(0)}%
-                  </span>
+                  <span className="text-emerald-400 font-bold">Bet Yes</span>
                 </button>
                 <button
                   onClick={() => { setSelectedOutcome("no"); setActiveModal("bet"); }}
-                  className="w-full flex items-center justify-between px-4 py-3 rounded-md bg-rose-500/10 border-2 border-rose-500/15 hover:border-rose-500/40 transition-colors group"
+                  className="w-full flex items-center justify-center px-4 py-3 rounded-md bg-rose-500/10 border-2 border-rose-500/15 hover:border-rose-500/40 transition-colors"
                 >
-                  <span className="text-rose-400 font-bold">No</span>
-                  <span className="text-rose-400 font-mono font-bold group-hover:text-rose-300">
-                    {noPercent.toFixed(0)}%
-                  </span>
+                  <span className="text-rose-400 font-bold">Bet No</span>
                 </button>
               </div>
               <div className="mt-3 flex items-center gap-1.5 text-[11px] text-privacy/60">
