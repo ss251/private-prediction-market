@@ -9,8 +9,8 @@ import { upsertUserPosition, incrementPoolTotal } from "../lib/supabase";
 interface Market {
   id: string;
   question: string;
-  yesPool: number;
-  noPool: number;
+  yesPool?: number;
+  noPool?: number;
   paused?: boolean;
 }
 
@@ -116,14 +116,6 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
     reset();
     onClose();
   };
-
-  const totalPool = market.yesPool + market.noPool;
-  const selectedPool = outcome === "yes" ? market.yesPool : market.noPool;
-
-  const currentOdds =
-    totalPool > 0 && selectedPool > 0
-      ? ((totalPool / selectedPool) * 0.98).toFixed(2)
-      : "2.00";
 
   const isExecuting = state !== "idle" && state !== "confirmed" && state !== "failed";
   const canSubmit = !isExecuting && amount && parseFloat(amount) >= 0.001 && !insufficientBalance && !market.paused;
