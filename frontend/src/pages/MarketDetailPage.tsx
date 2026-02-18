@@ -18,6 +18,7 @@ import {
 } from "../lib/aleo";
 import { PoolHistoryChart } from "../components/PoolHistoryChart";
 import { useMarkets, type DisplayMarket } from "../hooks/useMarkets";
+import { formatEndDate, getCountdown } from "../lib/dateFormat";
 import {
   useUserPositions,
   type OnChainPosition,
@@ -160,7 +161,7 @@ export function MarketDetailPage() {
             {displayStatus}
           </span>
           {market.endDate && (
-            <span className="text-xs text-gray-500 font-mono">{market.endDate}</span>
+            <span className="text-xs text-gray-500 font-mono">{formatEndDate(market.endDate)}</span>
           )}
           <span className="text-xs text-gray-600 font-mono sm:ml-auto">ID: {market.id}</span>
         </div>
@@ -313,7 +314,7 @@ export function MarketDetailPage() {
               )}
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">End Date</span>
-                <span className="text-white">{market.endDate}</span>
+                <span className="text-white">{formatEndDate(market.endDate)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Status</span>

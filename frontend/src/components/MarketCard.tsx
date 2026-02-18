@@ -1,6 +1,8 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { formatPool } from "../lib/aleo";
+import { formatEndDate, getCountdown } from "../lib/dateFormat";
 import type { OnChainPosition } from "../hooks/useUserPositions";
 
 interface Market {
@@ -38,6 +40,12 @@ const statusConfig = {
  */
 export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPosition }: MarketCardProps) {
   const { connected } = useWallet();
+  const [countdown, setCountdown] = useState(() => getCountdown(market.endDate));
+
+  useEffect(() => {
+    const timer = setInterval(() => setCountdown(getCountdown(market.endDate)), 60_000);
+    return () => clearInterval(timer);
+  }, [market.endDate]);
   const totalPool = market.yesPool + market.noPool;
   const yesPercent = totalPool > 0 ? (market.yesPool / totalPool) * 100 : 50;
   const noPercent = 100 - yesPercent;
@@ -60,8 +68,8 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPo
           {displayStatus ?? cfg.label}
         </span>
         {market.endDate && (
-          <span className="text-[11px] text-gray-600 font-mono">
-            {market.endDate}
+          <span className="text-[11px] text-gray-600 font-mono" title={formatEndDate(market.endDate)}>
+            {isOpen && countdown !== "Ended" ? `⏱ ${countdown}` : formatEndDate(market.endDate)}
           </span>
         )}
       </div>
