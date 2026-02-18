@@ -269,10 +269,11 @@ Deno.serve(async (_req: Request) => {
       if (!chain) continue;
 
       // Update chain-only columns (never overwrites metadata like title/description)
-      const chainData = {
+      // IMPORTANT: With deferred aggregate revelation, on-chain pools stay 0 until
+      // reveal phase. Only overwrite Supabase pools if chain has non-zero values
+      // (meaning revelation has occurred). Otherwise keep frontend-reported totals.
+      const chainData: Record<string, unknown> = {
         status: chain.status,
-        yes_pool: chain.yesPool,
-        no_pool: chain.noPool,
         outcome: chain.outcome,
         end_block: chain.endBlock,
         paused: chain.paused,
@@ -280,6 +281,12 @@ Deno.serve(async (_req: Request) => {
         oracle_enabled: chain.oracleEnabled,
         chain_updated_at: new Date().toISOString(),
       };
+
+      // Only overwrite pools from chain if chain has non-zero values
+      if (chain.yesPool > 0 || chain.noPool > 0) {
+        chainData.yes_pool = chain.yesPool;
+        chainData.no_pool = chain.noPool;
+      }
 
       const { data: updated, error: updateErr } = await supabase
         .from("markets")
