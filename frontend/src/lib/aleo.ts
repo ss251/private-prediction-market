@@ -7,7 +7,10 @@
 
 const API_URL = "https://api.explorer.provable.com/v1/testnet";
 /** Deployed prediction market program ID on Aleo testnet. */
-export const PROGRAM_ID = "prediction_market_test005.aleo";
+export const PROGRAM_ID = "prediction_market_test006.aleo";
+
+/** USDCx stablecoin program ID on Aleo testnet. */
+export const USDCX_PROGRAM_ID = "test_usdcx_stablecoin.aleo";
 
 /** Market status constants matching the on-chain contract values. */
 export const MarketStatus = {
@@ -222,15 +225,30 @@ export async function isMarketExpired(marketId: string): Promise<boolean> {
   return currentHeight >= endTime;
 }
 
-/** Get public credit balance for an Aleo address. */
+/** Get public USDCx balance for an Aleo address. */
 export async function getPublicBalance(address: string): Promise<bigint> {
+  try {
+    const response = await fetch(
+      `${API_URL}/program/${USDCX_PROGRAM_ID}/mapping/balances/${address}`
+    );
+    if (!response.ok) return 0n;
+    const data = await response.text();
+    // API returns quoted string, strip quotes before parsing
+    const cleaned = data.replace(/^"|"$/g, "");
+    return parseAleoValue(cleaned);
+  } catch {
+    return 0n;
+  }
+}
+
+/** Get public Aleo credits balance (for gas fees). */
+export async function getCreditsBalance(address: string): Promise<bigint> {
   try {
     const response = await fetch(
       `${API_URL}/program/credits.aleo/mapping/account/${address}`
     );
     if (!response.ok) return 0n;
     const data = await response.text();
-    // API returns quoted string, strip quotes before parsing
     const cleaned = data.replace(/^"|"$/g, "");
     return parseAleoValue(cleaned);
   } catch {
@@ -333,23 +351,23 @@ export function calculatePayout(
   return (betAmount * netPool) / winningPool;
 }
 
-/** Format microcredits (bigint) to a human-readable credits string. */
-export function formatCredits(microcredits: bigint): string {
-  const credits = Number(microcredits) / 1_000_000;
-  return credits.toLocaleString(undefined, {
+/** Format micro-USDC (bigint) to a human-readable USDC string. */
+export function formatCredits(microUsdc: bigint): string {
+  const usdc = Number(microUsdc) / 1_000_000;
+  return usdc.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 6,
   });
 }
 
-/** Format pool value for compact display (e.g., "1.2k credits"). */
-export function formatPool(microcredits: bigint): string {
-  if (microcredits === 0n) return "0";
-  const credits = Number(microcredits) / 1_000_000;
-  if (credits >= 1000) {
-    return `${(credits / 1000).toFixed(1)}k`;
+/** Format pool value for compact display (e.g., "1.2k USDC"). */
+export function formatPool(microUsdc: bigint): string {
+  if (microUsdc === 0n) return "0";
+  const usdc = Number(microUsdc) / 1_000_000;
+  if (usdc >= 1000) {
+    return `${(usdc / 1000).toFixed(1)}k`;
   }
-  return credits.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return usdc.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
 /** Check if the deployed contract supports oracle-based resolution. */
