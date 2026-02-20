@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchMarkets, subscribeToMarkets, supabase } from "../lib/supabase";
-import { getAllMarketIds, getMarkets, type MarketData } from "../lib/aleo";
+import { getAllMarketIds, getMarkets, getMappingValue, type MarketData } from "../lib/aleo";
 import {
   fetchMarketRegistry,
   getMarketLabel,
@@ -34,6 +34,13 @@ const STATUS_MAP: Record<number, DisplayMarket["status"]> = {
   1: "closed",
   2: "resolved",
   3: "cancelled",
+};
+
+const STATUS_MAP_REVERSE: Record<string, number> = {
+  open: 0,
+  closed: 1,
+  resolved: 2,
+  cancelled: 3,
 };
 
 /**
@@ -118,7 +125,41 @@ export function useMarkets() {
 
           const markets = await fetchMarkets();
           if (markets.length > 0) {
-            return markets.map(supabaseRowToDisplay);
+            const displayed = markets.map(supabaseRowToDisplay);
+            // Cross-reference chain for status/outcome on closed markets
+            // Chain is source of truth — Supabase may lag behind
+            const enhanced = await Promise.all(
+              displayed.map(async (m) => {
+                if (m.status === "closed" || m.status === "resolved") {
+                  try {
+                    const [statusRaw, outcomeRaw] = await Promise.all([
+                      getMappingValue("market_status", m.id),
+                      getMappingValue("market_outcome", m.id),
+                    ]);
+                    const chainStatus = statusRaw
+                      ? Number(statusRaw.replace(/u\d+$/, ""))
+                      : 0;
+                    const mapped = STATUS_MAP[chainStatus] ?? m.status;
+                    // Only upgrade status, never downgrade
+                    if (
+                      chainStatus > (STATUS_MAP_REVERSE[m.status] ?? 0)
+                    ) {
+                      let chainOutcome: boolean | undefined;
+                      if (outcomeRaw) {
+                        const cleaned = outcomeRaw.replace(/^"|"$/g, "");
+                        if (cleaned === "true") chainOutcome = true;
+                        else if (cleaned === "false") chainOutcome = false;
+                      }
+                      return { ...m, status: mapped, outcome: chainOutcome };
+                    }
+                  } catch {
+                    // Chain fetch failed, keep Supabase data
+                  }
+                }
+                return m;
+              }),
+            );
+            return enhanced;
           }
         } catch (e) {
           console.warn("Supabase fetch failed, falling back to chain:", e);
