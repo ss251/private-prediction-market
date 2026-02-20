@@ -272,8 +272,20 @@ Deno.serve(async (_req: Request) => {
       // IMPORTANT: With deferred aggregate revelation, on-chain pools stay 0 until
       // reveal phase. Only overwrite Supabase pools if chain has non-zero values
       // (meaning revelation has occurred). Otherwise keep frontend-reported totals.
+      //
+      // STATUS RULE: Never decrease status. If Supabase says closed (1) because
+      // end_date passed but chain still says open (0), keep the higher value.
+      // Chain status only advances (open→closed→resolved→cancelled).
+      const { data: existingRow } = await supabase
+        .from("markets")
+        .select("status")
+        .eq("market_id", chain.marketId)
+        .single();
+      const dbStatus = existingRow?.status ?? 0;
+      const effectiveStatus = Math.max(dbStatus, chain.status);
+
       const chainData: Record<string, unknown> = {
-        status: chain.status,
+        status: effectiveStatus,
         outcome: chain.outcome,
         end_block: chain.endBlock,
         paused: chain.paused,
@@ -343,6 +355,10 @@ Deno.serve(async (_req: Request) => {
       }
     }
 
+    // 3.5 Auto-close expired markets and aggregate pool totals
+    const { data: closedCount } = await supabase.rpc("close_expired_markets");
+    const marketsClosed = closedCount ?? 0;
+
     // 4. Update platform stats
     const { data: allMarkets } = await supabase
       .from("markets")
@@ -383,6 +399,7 @@ Deno.serve(async (_req: Request) => {
         snapshots: snapshotsInserted,
         positions: positionsIndexed,
         markets: marketIds.length,
+        closed: marketsClosed,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
