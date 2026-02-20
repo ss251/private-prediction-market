@@ -4,7 +4,7 @@ import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import { getPublicBalance, formatCredits, PROGRAM_ID } from "../lib/aleo";
 import { useBetRecords } from "../hooks/useBetRecords";
-import { upsertUserPosition, incrementPoolTotal } from "../lib/supabase";
+import { upsertUserPosition, incrementPoolTotal, accumulateBlindings } from "../lib/supabase";
 
 interface Market {
   id: string;
@@ -80,11 +80,12 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
       return;
     }
 
+    // Generate random nonce for Pedersen commitment privacy (hoisted for blinding tracking)
+    const nonce = BigInt(Math.floor(Math.random() * 2 ** 64)) * BigInt(Math.floor(Math.random() * 2 ** 64));
+
     const resultTxId = await execute(
       async () => {
         const functionName = existingRecord ? "add_to_bet" : "place_bet";
-        // Generate random nonce for Pedersen commitment privacy
-        const nonce = BigInt(Math.floor(Math.random() * 2 ** 64)) * BigInt(Math.floor(Math.random() * 2 ** 64));
         const inputs = existingRecord
           ? [existingRecord, `${amountMicrocredits}u64`, `${nonce}u128`]
           : [market.id, outcome === "yes" ? "true" : "false", `${amountMicrocredits}u64`, `${nonce}u128`];
@@ -102,11 +103,12 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
     );
 
     if (resultTxId && address) {
-      // Report position + update pool aggregates in Supabase, then refetch
-      // Await both so the UI has fresh data when onBetPlaced triggers refetch
+      // Report position + update pool aggregates + track blindings in Supabase
+      // Await all so the UI has fresh data when onBetPlaced triggers refetch
       await Promise.all([
         upsertUserPosition(address, market.id, outcome === "yes", amountMicrocredits).catch((e) => console.error("upsert position failed:", e)),
         incrementPoolTotal(market.id, outcome === "yes", amountMicrocredits).catch((e) => console.error("increment pool failed:", e)),
+        accumulateBlindings(market.id, nonce).catch((e) => console.error("accumulate blindings failed:", e)),
       ]);
       if (onBetPlaced) onBetPlaced();
     }

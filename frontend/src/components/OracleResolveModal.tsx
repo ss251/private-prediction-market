@@ -3,6 +3,7 @@ import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import { PROGRAM_ID, formatCredits } from "../lib/aleo";
+import { fetchBlindings } from "../lib/supabase";
 
 interface ResolveModalProps {
   marketId: string;
@@ -44,6 +45,9 @@ export function ResolveModal({
 
     const resultTxId = await execute(
       async () => {
+        // Fetch accumulated blinding factor sums from Supabase
+        const { sumBlindingYes, sumBlindingNo } = await fetchBlindings(marketId);
+
         const result = await executeTransaction({
           program: PROGRAM_ID,
           function: "resolve_market",
@@ -52,8 +56,8 @@ export function ResolveModal({
             `${outcome}`,
             `${yesPool}u64`,
             `${noPool}u64`,
-            `0scalar`,
-            `0scalar`,
+            `${sumBlindingYes}scalar`,
+            `${sumBlindingNo}scalar`,
           ],
           fee: 500_000,
         });

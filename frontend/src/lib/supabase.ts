@@ -206,6 +206,68 @@ export async function incrementPoolTotal(
   if (error) console.error("Failed to increment pool total:", error);
 }
 
+// --- Blinding factor tracking (for Pedersen commitment verification at resolution) ---
+
+/**
+ * After a bet, accumulate the blinding factors used in Pedersen commitments.
+ * The contract uses: blinding_yes = nonce as scalar, blinding_no = (nonce + 1) as scalar.
+ * For outcome=YES: yes gets the real amount, no gets 0 — but BOTH blindings are added.
+ * Sum is stored as decimal string to handle u128/scalar range.
+ */
+export async function accumulateBlindings(
+  marketId: string,
+  nonce: bigint,
+): Promise<void> {
+  if (!supabase) return;
+
+  // Contract derives: blinding_yes = nonce, blinding_no = nonce + 1
+  const blindingYes = nonce;
+  const blindingNo = nonce + 1n;
+
+  // Read current sums
+  const { data: existing } = await supabase
+    .from("market_blindings")
+    .select("sum_blinding_yes, sum_blinding_no")
+    .eq("market_id", marketId)
+    .single();
+
+  const currentYes = BigInt(existing?.sum_blinding_yes ?? "0");
+  const currentNo = BigInt(existing?.sum_blinding_no ?? "0");
+
+  const { error } = await supabase.from("market_blindings").upsert(
+    {
+      market_id: marketId,
+      sum_blinding_yes: (currentYes + blindingYes).toString(),
+      sum_blinding_no: (currentNo + blindingNo).toString(),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "market_id" },
+  );
+  if (error) console.error("Failed to accumulate blindings:", error);
+}
+
+/**
+ * Fetch blinding factor sums for a market (needed at resolution time).
+ */
+export async function fetchBlindings(
+  marketId: string,
+): Promise<{ sumBlindingYes: bigint; sumBlindingNo: bigint }> {
+  if (!supabase) return { sumBlindingYes: 0n, sumBlindingNo: 0n };
+
+  const { data, error } = await supabase
+    .from("market_blindings")
+    .select("sum_blinding_yes, sum_blinding_no")
+    .eq("market_id", marketId)
+    .single();
+
+  if (error || !data) return { sumBlindingYes: 0n, sumBlindingNo: 0n };
+
+  return {
+    sumBlindingYes: BigInt(data.sum_blinding_yes ?? "0"),
+    sumBlindingNo: BigInt(data.sum_blinding_no ?? "0"),
+  };
+}
+
 // --- Indexer trigger (fire-and-forget, keeps Supabase in sync with chain) ---
 
 let _indexerStarted = false;
