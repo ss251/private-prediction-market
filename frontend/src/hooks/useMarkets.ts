@@ -36,6 +36,23 @@ const STATUS_MAP: Record<number, DisplayMarket["status"]> = {
   3: "cancelled",
 };
 
+/**
+ * Derive effective status: if the DB says "open" but end_date has passed,
+ * treat the market as "closed" client-side so the UI never shows an
+ * expired market as open.
+ */
+function deriveStatus(
+  dbStatus: number | null,
+  endDate: string,
+): DisplayMarket["status"] {
+  const mapped = STATUS_MAP[dbStatus ?? 0] ?? "open";
+  if (mapped === "open") {
+    const end = new Date(endDate).getTime();
+    if (!isNaN(end) && Date.now() > end) return "closed";
+  }
+  return mapped;
+}
+
 function supabaseRowToDisplay(m: SupabaseMarketRow): DisplayMarket {
   let outcome: boolean | undefined;
   if (m.outcome === 1) outcome = true;
@@ -46,7 +63,7 @@ function supabaseRowToDisplay(m: SupabaseMarketRow): DisplayMarket {
     question: m.title,
     yesPool: m.yes_pool ?? 0,
     noPool: m.no_pool ?? 0,
-    status: STATUS_MAP[m.status ?? 0] ?? "open",
+    status: deriveStatus(m.status, m.end_date),
     endDate: m.end_date,
     outcome,
     paused: m.paused ?? false,
@@ -73,7 +90,7 @@ async function fetchMarketsFromChain(): Promise<DisplayMarket[]> {
       question: meta.question,
       yesPool: Number(m.yesPool),
       noPool: Number(m.noPool),
-      status: STATUS_MAP[m.status] ?? "open",
+      status: deriveStatus(m.status, meta.endDate),
       endDate: meta.endDate,
       outcome: m.outcome,
       paused: m.paused,

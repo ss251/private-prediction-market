@@ -24,6 +24,7 @@ interface MarketCardProps {
   onRefund?: () => void;
   onResolve?: () => void;
   userPosition?: OnChainPosition | null;
+  isAdmin?: boolean;
 }
 
 const statusConfig = {
@@ -38,7 +39,7 @@ const statusConfig = {
  * Shows question, probability bars, pool size, status badge, and action buttons
  * (bet, claim, refund, resolve) based on market state and wallet connection.
  */
-export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPosition }: MarketCardProps) {
+export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPosition, isAdmin }: MarketCardProps) {
   const { connected } = useWallet();
   const [countdown, setCountdown] = useState(() => getCountdown(market.endDate));
 
@@ -155,13 +156,19 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPo
       )}
 
       {/* Action buttons for non-open states */}
-      {market.status === "closed" && (
+      {market.status === "closed" && isAdmin && (
         <button
           onClick={onResolve}
           className="mb-3 w-full py-2 rounded-md bg-accent/10 text-accent border-2 border-accent/20 hover:border-accent/40 text-sm font-bold transition-colors"
         >
           Resolve Market
         </button>
+      )}
+
+      {market.status === "closed" && !isAdmin && (
+        <div className="mb-3 py-2 px-3 rounded-md text-center text-sm text-gray-400 bg-navy-700 border-2 border-navy-600">
+          Awaiting Resolution
+        </div>
       )}
 
       {isResolved && userPosition && (

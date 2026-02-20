@@ -23,6 +23,7 @@ import {
   useUserPositions,
   type OnChainPosition,
 } from "../hooks/useUserPositions";
+import { useAdmin } from "../hooks/useAdmin";
 
 type ModalType = "bet" | "claim" | "refund" | "resolve";
 
@@ -53,6 +54,7 @@ function displayToMarketData(dm: DisplayMarket): MarketData {
 export function MarketDetailPage() {
   const { marketId } = useParams<{ marketId: string }>();
   const { connected } = useWallet();
+  const { isAdmin } = useAdmin();
   const [activeModal, setActiveModal] = useState<ModalType | null>(null);
   const [selectedOutcome, setSelectedOutcome] = useState<"yes" | "no">("yes");
   const pageRef = useRef<HTMLDivElement>(null);
@@ -408,8 +410,8 @@ export function MarketDetailPage() {
             </div>
           )}
 
-          {/* Resolve */}
-          {market.status === "closed" && (
+          {/* Resolve (admin only) */}
+          {market.status === "closed" && isAdmin && (
             <div className="detail-section">
               <button
                 onClick={() => setActiveModal("resolve")}
@@ -417,6 +419,13 @@ export function MarketDetailPage() {
               >
                 Resolve Market
               </button>
+            </div>
+          )}
+
+          {market.status === "closed" && !isAdmin && (
+            <div className="detail-section glass-card p-4 sm:p-5 text-center">
+              <div className="text-sm text-gray-400">Awaiting Resolution</div>
+              <p className="text-xs text-gray-600 mt-1">The market admin will resolve this market and reveal final odds.</p>
             </div>
           )}
 
