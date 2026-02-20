@@ -1,7 +1,7 @@
 // Market history modal: overview, user position, privacy notice
 
 import { useMarketHistory } from "../hooks/useMarketHistory";
-import { formatCredits, formatPool, MarketStatus, type MarketData } from "../lib/aleo";
+import { formatCredits, MarketStatus, type MarketData } from "../lib/aleo";
 
 interface MarketHistoryProps {
   marketId: string;
@@ -49,11 +49,6 @@ export function MarketHistory({
 
   const totalPool =
     (marketData?.yesPool ?? 0n) + (marketData?.noPool ?? 0n);
-  const yesPercent =
-    totalPool > 0n
-      ? Number((marketData!.yesPool * 1000n) / totalPool) / 10
-      : 50;
-  const noPercent = 100 - yesPercent;
 
   const statusInfo = marketData
     ? STATUS_LABELS[marketData.status] ?? {

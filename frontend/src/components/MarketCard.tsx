@@ -48,8 +48,6 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPo
     return () => clearInterval(timer);
   }, [market.endDate]);
   const totalPool = market.yesPool + market.noPool;
-  const yesPercent = totalPool > 0 ? (market.yesPool / totalPool) * 100 : 50;
-  const noPercent = 100 - yesPercent;
   const totalPoolFormatted = formatPool(BigInt(totalPool));
 
   const displayStatus = market.paused && market.status === "open" ? "PAUSED" : undefined;
