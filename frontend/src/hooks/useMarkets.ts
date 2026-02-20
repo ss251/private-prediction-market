@@ -179,7 +179,17 @@ export function useMarkets() {
         const display = supabaseRowToDisplay(updated);
         const exists = old.some((m) => m.id === display.id);
         if (exists) {
-          return old.map((m) => (m.id === display.id ? display : m));
+          return old.map((m) => {
+            if (m.id !== display.id) return m;
+            // Never downgrade status from Realtime — chain is source of truth
+            const oldRank = STATUS_MAP_REVERSE[m.status] ?? 0;
+            const newRank = STATUS_MAP_REVERSE[display.status] ?? 0;
+            if (newRank < oldRank) {
+              // Keep the higher status + outcome, update other fields
+              return { ...display, status: m.status, outcome: m.outcome ?? display.outcome };
+            }
+            return display;
+          });
         }
         return [display, ...old];
       });
