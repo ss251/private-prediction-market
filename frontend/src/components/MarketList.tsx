@@ -18,6 +18,7 @@ import {
   type OnChainPosition,
 } from "../hooks/useUserPositions";
 import { useMarkets, type DisplayMarket } from "../hooks/useMarkets";
+import { useAdmin } from "../hooks/useAdmin";
 
 type ModalType = "bet" | "claim" | "refund" | "resolve" | "create";
 
@@ -28,6 +29,7 @@ type ModalType = "bet" | "claim" | "refund" | "resolve" | "create";
  */
 export function MarketList() {
   const { connected } = useWallet();
+  const { isAdmin } = useAdmin();
   const [selectedMarket, setSelectedMarket] = useState<DisplayMarket | null>(
     null
   );
@@ -194,6 +196,7 @@ export function MarketList() {
               onRefund={() => handleRefund(market)}
               onResolve={() => handleResolve(market)}
               userPosition={position}
+              isAdmin={isAdmin}
             />
             </div>
           );
