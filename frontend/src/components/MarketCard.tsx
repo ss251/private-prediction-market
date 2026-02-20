@@ -124,27 +124,12 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPo
       {/* Static display (when not open or not connected) */}
       {(!isOpen || !connected) && !isResolved && !isCancelled && (
         <div className="grid grid-cols-2 gap-2 mb-3">
-          {isOpen ? (
-            <>
-              <div className="flex items-center justify-center px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15">
-                <span className="text-emerald-400 text-sm font-bold">Yes</span>
-              </div>
-              <div className="flex items-center justify-center px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15">
-                <span className="text-rose-400 text-sm font-bold">No</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15">
-                <span className="text-emerald-400 text-sm font-bold">Yes</span>
-                <span className="text-emerald-400 font-mono text-sm font-bold">{yesPercent.toFixed(0)}%</span>
-              </div>
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15">
-                <span className="text-rose-400 text-sm font-bold">No</span>
-                <span className="text-rose-400 font-mono text-sm font-bold">{noPercent.toFixed(0)}%</span>
-              </div>
-            </>
-          )}
+          <div className="flex items-center justify-center px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15">
+            <span className="text-emerald-400 text-sm font-bold">Yes</span>
+          </div>
+          <div className="flex items-center justify-center px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15">
+            <span className="text-rose-400 text-sm font-bold">No</span>
+          </div>
         </div>
       )}
 

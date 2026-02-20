@@ -114,34 +114,9 @@ export function MarketHistory({
                   )}
                 </div>
 
-                {/* Pool bar */}
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-emerald-400">
-                      YES {yesPercent.toFixed(1)}%
-                    </span>
-                    <span className="text-rose-400">
-                      NO {noPercent.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="h-2.5 bg-navy-700 rounded-full overflow-hidden flex">
-                    <div
-                      className="pool-bar-yes transition-all"
-                      style={{ width: `${yesPercent}%` }}
-                    />
-                    <div
-                      className="pool-bar-no transition-all"
-                      style={{ width: `${noPercent}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-between text-sm text-gray-400">
-                  <span>
-                    YES: {formatPool(marketData.yesPool)} credits
-                  </span>
-                  <span>
-                    NO: {formatPool(marketData.noPool)} credits
+                {/* Pool hidden during active betting (DAR) */}
+                <div className="text-center py-2 text-sm text-gray-500">
+                  Pool totals hidden until resolution
                   </span>
                 </div>
                 <div className="text-xs text-gray-500 text-center">

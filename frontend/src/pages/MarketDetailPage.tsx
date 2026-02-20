@@ -184,7 +184,7 @@ export function MarketDetailPage() {
         <div className="md:col-span-2 space-y-6">
           {/* Probability / Privacy Display */}
           <div className="detail-section glass-card p-4 sm:p-6">
-            {isOpen ? (
+            {isOpen || market.status === "closed" ? (
               <>
                 <div className="flex items-baseline justify-between mb-3 sm:mb-4">
                   <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider">Market Pool</h2>
@@ -206,13 +206,13 @@ export function MarketDetailPage() {
                     <span className="font-heading text-lg sm:text-xl text-privacy/80">Pool Hidden</span>
                   </div>
                   <p className="text-xs sm:text-sm text-gray-500 max-w-sm mx-auto leading-relaxed">
-                    Pool totals are concealed during active betting to prevent information leakage.
-                    Odds are revealed after betting closes.
+                    Pool totals are concealed until resolution to prevent information leakage.
+                    Odds are revealed when the market is resolved.
                   </p>
                 </div>
 
-                {/* Bet buttons inline */}
-                {connected && (
+                {/* Bet buttons inline — only for open markets */}
+                {isOpen && connected && (
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => { setSelectedOutcome("yes"); setActiveModal("bet"); }}
@@ -262,8 +262,8 @@ export function MarketDetailPage() {
             )}
           </div>
 
-          {/* Pool History Chart — only show when pool is revealed */}
-          {!isOpen && (
+          {/* Pool History Chart — only show when resolved */}
+          {isResolved && (
             <div className="detail-section glass-card p-4 sm:p-6">
               <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 sm:mb-4">
                 Probability Over Time
@@ -391,13 +391,11 @@ export function MarketDetailPage() {
             <div className="detail-section glass-card p-4 sm:p-5 text-center">
               <p className="text-gray-400 text-sm mb-3">Connect wallet to place bets</p>
               <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15">
+                <div className="flex items-center justify-center px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15">
                   <span className="text-emerald-400 text-sm font-bold">Yes</span>
-                  <span className="text-emerald-400 font-mono text-sm font-bold">{yesPercent.toFixed(0)}%</span>
                 </div>
-                <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15">
+                <div className="flex items-center justify-center px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15">
                   <span className="text-rose-400 text-sm font-bold">No</span>
-                  <span className="text-rose-400 font-mono text-sm font-bold">{noPercent.toFixed(0)}%</span>
                 </div>
               </div>
             </div>
