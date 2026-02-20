@@ -52,6 +52,8 @@ export function ResolveModal({
             `${outcome}`,
             `${yesPool}u64`,
             `${noPool}u64`,
+            `0scalar`,
+            `0scalar`,
           ],
           fee: 500_000,
         });
