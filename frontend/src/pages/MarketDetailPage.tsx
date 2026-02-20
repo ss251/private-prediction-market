@@ -229,14 +229,14 @@ export function MarketDetailPage() {
                   </div>
                 )}
               </>
-            ) : (
+            ) : isResolved ? (
               <>
                 <div className="flex items-baseline justify-between mb-3 sm:mb-4">
                   <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider">Probability</h2>
                   <span className="text-[11px] sm:text-xs text-gray-600 font-mono">{totalPoolFormatted} credits in pool</span>
                 </div>
 
-                {/* Large probability display — only for non-open markets */}
+                {/* Large probability display — only after resolution */}
                 <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-5">
                   <div className="text-center py-3 sm:py-4 rounded-md bg-emerald-500/8 border-2 border-emerald-500/15">
                     <div className="font-heading text-2xl sm:text-4xl text-emerald-400 mb-1">{yesPercent.toFixed(1)}%</div>
@@ -259,11 +259,37 @@ export function MarketDetailPage() {
                   <span>NO: {formatPool(BigInt(market.noPool))} credits</span>
                 </div>
               </>
+            ) : (
+              <>
+                {/* Closed but not yet resolved — pool still hidden */}
+                <div className="flex items-baseline justify-between mb-3 sm:mb-4">
+                  <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider">Market Pool</h2>
+                  <span className="text-[11px] sm:text-xs text-privacy/60 font-mono flex items-center gap-1">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    Deferred Revelation
+                  </span>
+                </div>
+
+                <div className="text-center py-6 sm:py-8 rounded-md bg-navy-800/50 border-2 border-privacy/15">
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-privacy/70">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                    <span className="font-heading text-lg sm:text-xl text-privacy/80">Pool Hidden</span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-500 max-w-sm mx-auto leading-relaxed">
+                    Betting has closed. Pool totals and odds will be revealed when the market is resolved.
+                  </p>
+                </div>
+              </>
             )}
           </div>
 
-          {/* Pool History Chart — only show when pool is revealed */}
-          {!isOpen && (
+          {/* Pool History Chart — only show after resolution */}
+          {isResolved && (
             <div className="detail-section glass-card p-4 sm:p-6">
               <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 sm:mb-4">
                 Probability Over Time
@@ -296,7 +322,9 @@ export function MarketDetailPage() {
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Total Volume</span>
-                {isOpen ? (
+                {isResolved ? (
+                  <span className="text-white font-mono">{formatCredits(BigInt(totalPool))} credits</span>
+                ) : (
                   <span className="text-privacy/60 font-mono text-xs flex items-center gap-1">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -304,8 +332,6 @@ export function MarketDetailPage() {
                     </svg>
                     Hidden
                   </span>
-                ) : (
-                  <span className="text-white font-mono">{formatCredits(BigInt(totalPool))} credits</span>
                 )}
               </div>
               {market.endTime && (
@@ -391,13 +417,11 @@ export function MarketDetailPage() {
             <div className="detail-section glass-card p-4 sm:p-5 text-center">
               <p className="text-gray-400 text-sm mb-3">Connect wallet to place bets</p>
               <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15">
+                <div className="flex items-center justify-center px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15">
                   <span className="text-emerald-400 text-sm font-bold">Yes</span>
-                  <span className="text-emerald-400 font-mono text-sm font-bold">{yesPercent.toFixed(0)}%</span>
                 </div>
-                <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15">
+                <div className="flex items-center justify-center px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15">
                   <span className="text-rose-400 text-sm font-bold">No</span>
-                  <span className="text-rose-400 font-mono text-sm font-bold">{noPercent.toFixed(0)}%</span>
                 </div>
               </div>
             </div>
