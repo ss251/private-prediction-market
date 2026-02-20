@@ -40,15 +40,41 @@ const STATUS_MAP_REVERSE: Record<string, number> = {
   cancelled: 3,
 };
 
-// ── High-water-mark cache ──────────────────────────────────────────
-// Module-level cache that persists across React renders and query refetches.
-// Once we learn from the chain that a market is resolved, we NEVER forget it.
-// This prevents any stale Supabase data or Realtime event from reverting status.
-const statusHighWater: Map<string, { status: DisplayMarket["status"]; outcome?: boolean }> = new Map();
+// ── High-water-mark cache (sessionStorage-backed) ─────────────────
+// Persists across React renders, query refetches, AND page navigations.
+// Once we learn from the chain that a market is resolved, we never forget
+// it — even on fresh page loads within the same browser session.
+const HW_STORAGE_KEY = "market_status_hw";
+
+type HWEntry = { status: DisplayMarket["status"]; outcome?: boolean };
+
+function loadHighWater(): Map<string, HWEntry> {
+  const map = new Map<string, HWEntry>();
+  try {
+    const raw = sessionStorage.getItem(HW_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, HWEntry>;
+      for (const [k, v] of Object.entries(parsed)) {
+        map.set(k, v);
+      }
+    }
+  } catch { /* ignore parse errors */ }
+  return map;
+}
+
+function saveHighWater(map: Map<string, HWEntry>): void {
+  try {
+    const obj: Record<string, HWEntry> = {};
+    for (const [k, v] of map) obj[k] = v;
+    sessionStorage.setItem(HW_STORAGE_KEY, JSON.stringify(obj));
+  } catch { /* quota or private mode */ }
+}
+
+const statusHighWater = loadHighWater();
 
 /**
  * Record the highest-known status for a market. Returns the effective
- * status/outcome (always the highest ever seen).
+ * status/outcome (always the highest ever seen). Persists to sessionStorage.
  */
 function applyHighWater(m: DisplayMarket): DisplayMarket {
   const cached = statusHighWater.get(m.id);
@@ -56,8 +82,9 @@ function applyHighWater(m: DisplayMarket): DisplayMarket {
   const cachedRank = cached ? (STATUS_MAP_REVERSE[cached.status] ?? 0) : -1;
 
   if (mRank > cachedRank) {
-    // New status is higher — update the cache
+    // New status is higher — update the cache + persist
     statusHighWater.set(m.id, { status: m.status, outcome: m.outcome });
+    saveHighWater(statusHighWater);
     return m;
   } else if (cachedRank > mRank) {
     // Cached status is higher — override what we were given
