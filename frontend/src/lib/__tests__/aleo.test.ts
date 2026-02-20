@@ -14,8 +14,8 @@ import {
 
 describe("aleo utilities", () => {
   describe("PROGRAM_ID", () => {
-    it("is set to test005", () => {
-      expect(PROGRAM_ID).toBe("prediction_market_test005.aleo");
+    it("is set to test006", () => {
+      expect(PROGRAM_ID).toBe("prediction_market_test006.aleo");
     });
 
     it("has oracle program ID set", () => {
