@@ -339,7 +339,7 @@ export function MarketDetailPage() {
                   revelation and are only published at market resolution.
                 </p>
                 <p className="text-xs text-gray-500">
-                  Pedersen128 homomorphic commitments verify pool integrity without exposing
+                  Pedersen homomorphic commitments verify pool integrity without exposing
                   individual bets. Payouts are computed entirely inside the ZK circuit.
                   A 1000-block dispute window allows community verification after resolution.
                   {" "}

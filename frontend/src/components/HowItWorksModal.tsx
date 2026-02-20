@@ -33,9 +33,9 @@ const slides = [
     step: "2",
     title: "Bet Privately with ZK",
     description:
-      "Choose from 5 fixed credit tiers. Your bet generates a ZK proof and a Pedersen commitment. Only the bet count increments on-chain — no direction, no amount.",
+      "Choose from 5 fixed credit tiers. Your bet generates a ZK proof and a Pedersen commitment. Aggregate commitments update on-chain — no direction revealed. Bet amount is public but indistinguishable within tiers.",
     privacy:
-      "Bet direction is encrypted in your Bet record, never passed as a finalize argument. Pedersen128 commitments aggregate homomorphically so pool totals stay hidden until resolution.",
+      "Bet direction is encrypted in your Bet record, never passed as a finalize argument. Pedersen commitments aggregate homomorphically so pool totals stay hidden until resolution.",
     icon: (
       <div className="flex flex-col items-center gap-3">
         <div className="glass-card px-6 py-4 flex flex-col items-center gap-1 relative">

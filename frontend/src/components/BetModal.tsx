@@ -263,7 +263,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
             <span>
               Your bet is fully private — direction is encrypted in your Bet record
               and never appears on-chain. Pool totals are only revealed at resolution.
-              Only a bet count is incremented publicly.
+              Only aggregate commitments update on-chain.
             </span>
           </div>
 
