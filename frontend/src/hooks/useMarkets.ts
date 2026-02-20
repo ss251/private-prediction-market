@@ -10,8 +10,6 @@ import type { SupabaseMarketRow } from "../db/types";
 
 /**
  * Unified market data that works with both Supabase and chain fallback.
- * Replaces the 3-query cascade (marketIds → markets → registry) with a
- * single Supabase query when available.
  */
 export interface DisplayMarket {
   id: string;
@@ -43,10 +41,39 @@ const STATUS_MAP_REVERSE: Record<string, number> = {
   cancelled: 3,
 };
 
+// ── High-water-mark cache ──────────────────────────────────────────
+// Module-level cache that persists across React renders and query refetches.
+// Once we learn from the chain that a market is resolved, we NEVER forget it.
+// This prevents any stale Supabase data or Realtime event from reverting status.
+const statusHighWater: Map<string, { status: DisplayMarket["status"]; outcome?: boolean }> = new Map();
+
+/**
+ * Record the highest-known status for a market. Returns the effective
+ * status/outcome (always the highest ever seen).
+ */
+function applyHighWater(m: DisplayMarket): DisplayMarket {
+  const cached = statusHighWater.get(m.id);
+  const mRank = STATUS_MAP_REVERSE[m.status] ?? 0;
+  const cachedRank = cached ? (STATUS_MAP_REVERSE[cached.status] ?? 0) : -1;
+
+  if (mRank > cachedRank) {
+    // New status is higher — update the cache
+    statusHighWater.set(m.id, { status: m.status, outcome: m.outcome });
+    return m;
+  } else if (cachedRank > mRank) {
+    // Cached status is higher — override what we were given
+    return { ...m, status: cached!.status, outcome: cached!.outcome ?? m.outcome };
+  }
+  // Same rank — keep outcome if cached has one and new doesn't
+  if (cached?.outcome !== undefined && m.outcome === undefined) {
+    return { ...m, outcome: cached.outcome };
+  }
+  return m;
+}
+
 /**
  * Derive effective status: if the DB says "open" but end_date has passed,
- * treat the market as "closed" client-side so the UI never shows an
- * expired market as open.
+ * treat the market as "closed" client-side.
  */
 function deriveStatus(
   dbStatus: number | null,
@@ -82,6 +109,32 @@ function supabaseRowToDisplay(m: SupabaseMarketRow): DisplayMarket {
   };
 }
 
+/** Cross-reference a single market against on-chain data */
+async function crossReferenceChain(m: DisplayMarket): Promise<DisplayMarket> {
+  if (m.status !== "closed" && m.status !== "resolved") return m;
+  try {
+    const [statusRaw, outcomeRaw] = await Promise.all([
+      getMappingValue("market_status", m.id),
+      getMappingValue("market_outcome", m.id),
+    ]);
+    const chainStatusNum = statusRaw ? Number(statusRaw.replace(/u\d+$/, "")) : 0;
+    const chainStatus = STATUS_MAP[chainStatusNum] ?? m.status;
+    // Only upgrade, never downgrade
+    if (chainStatusNum > (STATUS_MAP_REVERSE[m.status] ?? 0)) {
+      let chainOutcome: boolean | undefined;
+      if (outcomeRaw) {
+        const cleaned = outcomeRaw.replace(/^"|"$/g, "");
+        if (cleaned === "true") chainOutcome = true;
+        else if (cleaned === "false") chainOutcome = false;
+      }
+      return { ...m, status: chainStatus, outcome: chainOutcome };
+    }
+  } catch {
+    // Chain fetch failed — keep what we have
+  }
+  return m;
+}
+
 /** Fallback: original chain-based fetching */
 async function fetchMarketsFromChain(): Promise<DisplayMarket[]> {
   const marketIds = await getAllMarketIds();
@@ -109,6 +162,9 @@ async function fetchMarketsFromChain(): Promise<DisplayMarket[]> {
 /**
  * Hook for fetching all markets with Supabase-first strategy and chain fallback.
  * Subscribes to Supabase Realtime for live updates to market rows.
+ *
+ * Uses a module-level high-water-mark cache so that once a market is known
+ * to be "resolved" (from chain), no stale Supabase data can revert it.
  */
 export function useMarkets() {
   const queryClient = useQueryClient();
@@ -119,54 +175,25 @@ export function useMarkets() {
       // Try Supabase first
       if (supabase) {
         try {
-          // Auto-close expired markets before fetching (aggregates pools)
+          // Auto-close expired markets before fetching
           const { error: closeErr } = await supabase.rpc("close_expired_markets");
           if (closeErr) console.warn("close_expired_markets RPC:", closeErr.message);
 
           const markets = await fetchMarkets();
           if (markets.length > 0) {
             const displayed = markets.map(supabaseRowToDisplay);
-            // Cross-reference chain for status/outcome on closed markets
-            // Chain is source of truth — Supabase may lag behind
-            const enhanced = await Promise.all(
-              displayed.map(async (m) => {
-                if (m.status === "closed" || m.status === "resolved") {
-                  try {
-                    const [statusRaw, outcomeRaw] = await Promise.all([
-                      getMappingValue("market_status", m.id),
-                      getMappingValue("market_outcome", m.id),
-                    ]);
-                    const chainStatus = statusRaw
-                      ? Number(statusRaw.replace(/u\d+$/, ""))
-                      : 0;
-                    const mapped = STATUS_MAP[chainStatus] ?? m.status;
-                    // Only upgrade status, never downgrade
-                    if (
-                      chainStatus > (STATUS_MAP_REVERSE[m.status] ?? 0)
-                    ) {
-                      let chainOutcome: boolean | undefined;
-                      if (outcomeRaw) {
-                        const cleaned = outcomeRaw.replace(/^"|"$/g, "");
-                        if (cleaned === "true") chainOutcome = true;
-                        else if (cleaned === "false") chainOutcome = false;
-                      }
-                      return { ...m, status: mapped, outcome: chainOutcome };
-                    }
-                  } catch {
-                    // Chain fetch failed, keep Supabase data
-                  }
-                }
-                return m;
-              }),
-            );
-            return enhanced;
+            // Cross-reference chain for closed/resolved markets
+            const enhanced = await Promise.all(displayed.map(crossReferenceChain));
+            // Apply high-water-mark: never downgrade from what we've seen before
+            return enhanced.map(applyHighWater);
           }
         } catch (e) {
           console.warn("Supabase fetch failed, falling back to chain:", e);
         }
       }
       // Fallback to direct chain queries
-      return fetchMarketsFromChain();
+      const chainMarkets = await fetchMarketsFromChain();
+      return chainMarkets.map(applyHighWater);
     },
     refetchInterval: 60_000,
   });
@@ -177,21 +204,13 @@ export function useMarkets() {
       queryClient.setQueryData<DisplayMarket[]>(["markets"], (old) => {
         if (!old) return old;
         const display = supabaseRowToDisplay(updated);
-        const exists = old.some((m) => m.id === display.id);
+        // Apply high-water-mark before updating cache
+        const safe = applyHighWater(display);
+        const exists = old.some((m) => m.id === safe.id);
         if (exists) {
-          return old.map((m) => {
-            if (m.id !== display.id) return m;
-            // Never downgrade status from Realtime — chain is source of truth
-            const oldRank = STATUS_MAP_REVERSE[m.status] ?? 0;
-            const newRank = STATUS_MAP_REVERSE[display.status] ?? 0;
-            if (newRank < oldRank) {
-              // Keep the higher status + outcome, update other fields
-              return { ...display, status: m.status, outcome: m.outcome ?? display.outcome };
-            }
-            return display;
-          });
+          return old.map((m) => (m.id === safe.id ? safe : m));
         }
-        return [display, ...old];
+        return [safe, ...old];
       });
     });
     return () => {
