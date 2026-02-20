@@ -117,10 +117,6 @@ export function MarketHistory({
                 {/* Pool hidden during active betting (DAR) */}
                 <div className="text-center py-2 text-sm text-gray-500">
                   Pool totals hidden until resolution
-                  </span>
-                </div>
-                <div className="text-xs text-gray-500 text-center">
-                  Total Pool: {formatCredits(totalPool)} credits
                 </div>
 
                 {marketData.status === MarketStatus.RESOLVED &&
