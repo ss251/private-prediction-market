@@ -1,12 +1,16 @@
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
-import { WalletMultiButton } from "@demox-labs/aleo-wallet-adapter-reactui";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
+import { WalletMultiButton } from "@provablehq/aleo-wallet-adaptor-react-ui";
 
 interface HeaderProps {
   onHowItWorks?: () => void;
 }
 
+/**
+ * Application header with branding, wallet connection status, and navigation.
+ * Integrates the Shield Wallet multi-button for wallet connect/disconnect.
+ */
 export function Header({ onHowItWorks }: HeaderProps) {
-  const { connected, publicKey, connecting } = useWallet();
+  const { connected, address, connecting } = useWallet();
 
   return (
     <header className="border-b-2 border-navy-600 bg-navy-900/80 backdrop-blur-lg sticky top-0 z-40">
@@ -28,11 +32,11 @@ export function Header({ onHowItWorks }: HeaderProps) {
         </a>
 
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-          {connected && publicKey && (
+          {connected && address && (
             <div className="hidden md:flex items-center gap-2 text-sm">
               <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
               <span className="text-gray-400 font-mono text-xs">
-                {publicKey.slice(0, 6)}...{publicKey.slice(-4)}
+                {address.slice(0, 6)}...{address.slice(-4)}
               </span>
             </div>
           )}

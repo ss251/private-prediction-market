@@ -12,11 +12,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@demox-labs/aleo-wallet-adapter-base": "^0.0.23",
-    "@demox-labs/aleo-wallet-adapter-leo": "^0.0.25",
-    "@demox-labs/aleo-wallet-adapter-react": "^0.0.22",
-    "@demox-labs/aleo-wallet-adapter-reactui": "^0.0.36",
     "@gsap/react": "^2.1.2",
+    "@provablehq/aleo-wallet-adaptor-core": "0.3.0-alpha.3",
+    "@provablehq/aleo-wallet-adaptor-react": "0.3.0-alpha.3",
+    "@provablehq/aleo-wallet-adaptor-react-ui": "0.3.0-alpha.3",
+    "@provablehq/aleo-wallet-adaptor-shield": "0.3.0-alpha.3",
     "@provablehq/sdk": "^0.9.15",
     "@supabase/supabase-js": "^2.93.3",
     "@tanstack/react-query": "^5.90.20",
@@ -27,7 +27,8 @@
     "postgres": "^3.4.8",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^7.13.0"
+    "react-router-dom": "^7.13.0",
+    "recharts": "^3.7.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

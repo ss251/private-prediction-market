@@ -1,6 +1,8 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { formatPool } from "../lib/aleo";
+import { formatEndDate, getCountdown } from "../lib/dateFormat";
 import type { OnChainPosition } from "../hooks/useUserPositions";
 
 interface Market {
@@ -22,6 +24,7 @@ interface MarketCardProps {
   onRefund?: () => void;
   onResolve?: () => void;
   userPosition?: OnChainPosition | null;
+  isAdmin?: boolean;
 }
 
 const statusConfig = {
@@ -31,8 +34,19 @@ const statusConfig = {
   cancelled: { label: "CANCELLED", dot: "bg-rose-400", text: "text-rose-400", bg: "bg-rose-500/10", border: "border-rose-500/20" },
 } as const;
 
-export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPosition }: MarketCardProps) {
+/**
+ * Card component for displaying a single prediction market.
+ * Shows question, probability bars, pool size, status badge, and action buttons
+ * (bet, claim, refund, resolve) based on market state and wallet connection.
+ */
+export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPosition, isAdmin }: MarketCardProps) {
   const { connected } = useWallet();
+  const [countdown, setCountdown] = useState(() => getCountdown(market.endDate));
+
+  useEffect(() => {
+    const timer = setInterval(() => setCountdown(getCountdown(market.endDate)), 60_000);
+    return () => clearInterval(timer);
+  }, [market.endDate]);
   const totalPool = market.yesPool + market.noPool;
   const yesPercent = totalPool > 0 ? (market.yesPool / totalPool) * 100 : 50;
   const noPercent = 100 - yesPercent;
@@ -55,8 +69,8 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPo
           {displayStatus ?? cfg.label}
         </span>
         {market.endDate && (
-          <span className="text-[11px] text-gray-600 font-mono">
-            {market.endDate}
+          <span className="text-[11px] text-gray-600 font-mono" title={formatEndDate(market.endDate)}>
+            {isOpen && countdown !== "Ended" ? `⏱ ${countdown}` : formatEndDate(market.endDate)}
           </span>
         )}
       </div>
@@ -94,36 +108,43 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPo
         <div className="grid grid-cols-2 gap-2 mb-3">
           <button
             onClick={() => onBet("yes")}
-            className="flex items-center justify-between px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15 hover:border-emerald-500/40 transition-colors group"
+            className="flex items-center justify-center px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15 hover:border-emerald-500/40 transition-colors group"
           >
-            <span className="text-emerald-400 text-sm font-bold">Yes</span>
-            <span className="text-emerald-400 font-mono text-sm font-bold group-hover:text-emerald-300">
-              {yesPercent.toFixed(0)}%
-            </span>
+            <span className="text-emerald-400 text-sm font-bold">Bet Yes</span>
           </button>
           <button
             onClick={() => onBet("no")}
-            className="flex items-center justify-between px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15 hover:border-rose-500/40 transition-colors group"
+            className="flex items-center justify-center px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15 hover:border-rose-500/40 transition-colors group"
           >
-            <span className="text-rose-400 text-sm font-bold">No</span>
-            <span className="text-rose-400 font-mono text-sm font-bold group-hover:text-rose-300">
-              {noPercent.toFixed(0)}%
-            </span>
+            <span className="text-rose-400 text-sm font-bold">Bet No</span>
           </button>
         </div>
       )}
 
-      {/* Static probability display (when not open or not connected) */}
-      {(!isOpen || !connected) && (
+      {/* Static display (when not open or not connected) */}
+      {(!isOpen || !connected) && !isResolved && !isCancelled && (
         <div className="grid grid-cols-2 gap-2 mb-3">
-          <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15">
-            <span className="text-emerald-400 text-sm font-bold">Yes</span>
-            <span className="text-emerald-400 font-mono text-sm font-bold">{yesPercent.toFixed(0)}%</span>
-          </div>
-          <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15">
-            <span className="text-rose-400 text-sm font-bold">No</span>
-            <span className="text-rose-400 font-mono text-sm font-bold">{noPercent.toFixed(0)}%</span>
-          </div>
+          {isOpen ? (
+            <>
+              <div className="flex items-center justify-center px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15">
+                <span className="text-emerald-400 text-sm font-bold">Yes</span>
+              </div>
+              <div className="flex items-center justify-center px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15">
+                <span className="text-rose-400 text-sm font-bold">No</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15">
+                <span className="text-emerald-400 text-sm font-bold">Yes</span>
+                <span className="text-emerald-400 font-mono text-sm font-bold">{yesPercent.toFixed(0)}%</span>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15">
+                <span className="text-rose-400 text-sm font-bold">No</span>
+                <span className="text-rose-400 font-mono text-sm font-bold">{noPercent.toFixed(0)}%</span>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -135,13 +156,19 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPo
       )}
 
       {/* Action buttons for non-open states */}
-      {market.status === "closed" && (
+      {market.status === "closed" && isAdmin && (
         <button
           onClick={onResolve}
           className="mb-3 w-full py-2 rounded-md bg-accent/10 text-accent border-2 border-accent/20 hover:border-accent/40 text-sm font-bold transition-colors"
         >
           Resolve Market
         </button>
+      )}
+
+      {market.status === "closed" && !isAdmin && (
+        <div className="mb-3 py-2 px-3 rounded-md text-center text-sm text-gray-400 bg-navy-700 border-2 border-navy-600">
+          Awaiting Resolution
+        </div>
       )}
 
       {isResolved && userPosition && (
@@ -162,16 +189,26 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPo
         </button>
       )}
 
-      {/* Footer: volume + privacy + view details */}
+      {/* Footer: privacy badge + pool (if revealed) + details link */}
       <div className="flex items-center justify-between pt-3 border-t-2 border-navy-600">
         <div className="flex items-center gap-1.5 text-[11px] text-privacy/60">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
-          Anonymous
+          {isOpen ? (
+            <span className="flex items-center gap-1">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              Pool hidden
+            </span>
+          ) : (
+            "Anonymous"
+          )}
         </div>
         <div className="flex items-center gap-3 text-[11px] text-gray-600">
-          <span className="font-mono">{totalPoolFormatted} credits</span>
+          {!isOpen && <span className="font-mono">{totalPoolFormatted} credits</span>}
           <Link
             to={`/market/${market.id}`}
             className="text-accent-light hover:text-accent transition-colors font-medium"

@@ -14,7 +14,7 @@ export type TransactionState =
 export const stateMessages: Record<TransactionState, string> = {
   idle: "Place Bet",
   signing: "Approve in wallet...",
-  proving: "Generating ZK proof (30-60s)...",
+  proving: "Generating proof via Shield...",
   broadcasting: "Broadcasting to network...",
   confirming: "Waiting for confirmation...",
   confirmed: "Success!",

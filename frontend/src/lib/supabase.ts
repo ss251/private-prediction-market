@@ -91,6 +91,121 @@ export async function upsertMarketMeta(meta: MarketMetaInsert): Promise<void> {
   if (error) console.error("Failed to upsert market metadata:", error);
 }
 
+// --- User positions ---
+
+/**
+ * Fetch user positions from Supabase for a given wallet and market IDs.
+ * Returns aggregated YES/NO amounts per market.
+ */
+export async function fetchUserPositions(
+  walletAddress: string,
+  marketIds: string[],
+): Promise<{ marketId: string; yesAmount: number; noAmount: number }[]> {
+  if (!supabase || marketIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("user_positions")
+    .select("market_id, yes_amount, no_amount")
+    .eq("wallet_address", walletAddress)
+    .in("market_id", marketIds);
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    marketId: String(r.market_id),
+    yesAmount: Number(r.yes_amount ?? 0),
+    noAmount: Number(r.no_amount ?? 0),
+  }));
+}
+
+/**
+ * Upsert a user position in Supabase after a bet is placed.
+ * Adds the bet amount to the existing position (or creates a new row).
+ */
+export async function upsertUserPosition(
+  walletAddress: string,
+  marketId: string,
+  outcome: boolean,
+  amount: number,
+): Promise<void> {
+  if (!supabase) return;
+  // First try to get existing
+  const { data: existing } = await supabase
+    .from("user_positions")
+    .select("yes_amount, no_amount")
+    .eq("wallet_address", walletAddress)
+    .eq("market_id", marketId)
+    .single();
+
+  const currentYes = Number(existing?.yes_amount ?? 0);
+  const currentNo = Number(existing?.no_amount ?? 0);
+
+  const { error } = await supabase.from("user_positions").upsert(
+    {
+      wallet_address: walletAddress,
+      market_id: marketId,
+      yes_amount: outcome ? currentYes + amount : currentYes,
+      no_amount: outcome ? currentNo : currentNo + amount,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "wallet_address,market_id" },
+  );
+  if (error) console.error("Failed to upsert user position:", error);
+}
+
+/**
+ * Replace (not add) a user position in Supabase with absolute amounts.
+ * Used by syncFromChain to seed positions from wallet records.
+ */
+export async function upsertUserPositionFull(
+  walletAddress: string,
+  marketId: string,
+  yesAmount: number,
+  noAmount: number,
+): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase.from("user_positions").upsert(
+    {
+      wallet_address: walletAddress,
+      market_id: marketId,
+      yes_amount: yesAmount,
+      no_amount: noAmount,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "wallet_address,market_id" },
+  );
+  if (error) console.error("Failed to upsert full position:", error);
+}
+
+/**
+ * Increment pool totals in Supabase after a bet is placed.
+ * Since pool totals are NOT on-chain during betting (deferred aggregate revelation),
+ * Supabase is the source of truth for live odds until resolution.
+ */
+export async function incrementPoolTotal(
+  marketId: string,
+  outcome: boolean,
+  amount: number,
+): Promise<void> {
+  if (!supabase) return;
+  // Read current pools
+  const { data: market } = await supabase
+    .from("markets")
+    .select("yes_pool, no_pool")
+    .eq("market_id", marketId)
+    .single();
+
+  const currentYes = Number(market?.yes_pool ?? 0);
+  const currentNo = Number(market?.no_pool ?? 0);
+
+  const newYes = outcome ? currentYes + amount : currentYes;
+  const newNo = outcome ? currentNo : currentNo + amount;
+
+  const { error } = await supabase.from("markets").update({
+    yes_pool: newYes,
+    no_pool: newNo,
+    chain_updated_at: new Date().toISOString(),
+  }).eq("market_id", marketId);
+  if (error) console.error("Failed to increment pool total:", error);
+}
+
 // --- Indexer trigger (fire-and-forget, keeps Supabase in sync with chain) ---
 
 let _indexerStarted = false;

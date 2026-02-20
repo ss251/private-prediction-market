@@ -1,0 +1,160 @@
+# Wave 2 Changelog — Lasagna (Private Prediction Market)
+
+## What we built this wave
+
+### 🔒 Deferred Aggregate Revelation (Privacy Architecture Upgrade)
+The single biggest privacy improvement possible on Aleo prediction markets.
+
+**Problem**: Every Aleo prediction market (including Veiled Markets) updates pool totals inside the user's `place_bet` finalize block. This leaks bet direction and amount as public finalize arguments in every single transaction.
+
+**Our solution**: Pool totals are **never updated on-chain during betting**. The `place_bet` finalize only checks market status and increments a public `bet_count` — no direction, no amount. Live odds are tracked off-chain in Supabase. Pool totals are only published on-chain at resolution time via `resolve_market(market_id, outcome, total_yes, total_no)`.
+
+**Privacy surface comparison**:
+| Aspect | Standard (Veiled Markets etc.) | Lasagna (Deferred) |
+|--------|-------------------------------|-------------------|
+| Bet direction in finalize | ✗ Public every bet | ✓ Never on-chain |
+| Bet amount in finalize | ✗ Public every bet | ✓ Never on-chain |
+| Live pool totals on-chain | ✗ Updated every bet | ✓ Only at resolution |
+| Bet record fields | Encrypted (standard) | Encrypted (standard) |
+
+**What's private**: Bet direction (encrypted in Bet record, never in finalize args), bettor identity (wallet never linked to bet), pool composition during betting.
+
+**What's public**: Bet count per market, credit transfer amounts (visible in credits.aleo but not linked to direction), pool totals at resolution, market outcome.
+
+### Shield Wallet Integration (Mandatory)
+- Migrated from `@demox-labs/aleo-wallet-adapter-*` to `@provablehq/aleo-wallet-adaptor-*` (v0.3.0-alpha.3)
+- ShieldWalletAdapter is the primary wallet
+- Updated 15 frontend files for new API pattern
+
+### Supabase-Indexed User Positions
+- New `user_positions` table tracks bets without wallet popups (`requestRecords()`)
+- `useUserPositions` hook queries Supabase REST instead of decrypting on-chain records
+- `incrementPoolTotal()` updates market aggregates in Supabase on bet confirmation
+
+### Pool History Charts
+- `PoolHistoryChart` component using Recharts
+- Reads from `pool_snapshots` Supabase table
+- Displayed on market detail pages
+
+### Privacy Disclosure
+- Honest, transparent breakdown of what's private vs public
+- References Aleo's execution model limitations
+- Links to on-chain contract for verification
+
+### Oracle Investigation
+- Investigated all oracle options: zkPortal (dead since April 2025), Snorkle (0 calls), Veru (mainnet only)
+- Decision: Manual resolution for now, contract interface is oracle-swappable
+
+## Wave 2.1 Privacy Upgrades
+
+### 🔐 BHP256 Commitment Nonce (Brute-Force Resistance)
+Added a private `nonce_value: u128` field to the `Bet` record to prevent commitment brute-forcing.
+
+**Problem**: With only 10 possible (outcome × tier) combinations per known owner/market_id, an observer could enumerate all BHP256 hashes in milliseconds, revealing bet direction and amount from the public `bet_commit`. This made the commitment scheme security theater.
+
+**Fix**: The `Bet` record now includes a random `nonce_value: u128` field. Since `BHP256::hash_to_field(bet)` hashes the full record including nonce, the search space expands from ~10 to 2^128 — computationally infeasible to brute-force.
+
+**Changes**:
+- `Bet` record: added `nonce_value: u128` field
+- `place_bet` transition: accepts `private nonce_value: u128` parameter
+- `add_to_bet` transition: accepts `private nonce_value: u128` parameter (fresh nonce for consolidated record)
+- Frontend must generate random u128 nonces (e.g., `crypto.getRandomValues`)
+
+**Tradeoff**: During disputes (`submit_bet_proof`), the nonce is revealed along with the full Bet record. This is acceptable because dispute submission is voluntary and the bet is already settled.
+
+### 🔗 Pedersen128 Homomorphic Aggregate Commitment Scheme (replaces BHP256 hash chain)
+Replaced the BHP256 hash chain aggregate commitment with Pedersen128 homomorphic commitments, enabling **cryptographic verification** of pool totals at resolution — not just fraud detection, but mathematical proof.
+
+**How it works:**
+- New mappings: `yes_aggregate_commit: field => group` and `no_aggregate_commit: field => group`
+- On each `place_bet` and `add_to_bet`, the transition computes TWO Pedersen commitments:
+  - `yes_contrib = Pedersen128::commit_to_group(yes_amount, blinding_yes)`
+  - `no_contrib = Pedersen128::commit_to_group(no_amount, blinding_no)`
+  - One commits the real amount, the other commits 0 — both look like random group elements
+- Finalize adds them homomorphically: `agg = agg + contrib` (group addition)
+- At resolution, admin provides `sum_blinding_yes` and `sum_blinding_no` (from Supabase)
+- Finalize recomputes `Pedersen128::commit_to_group(total, sum_blinding)` and asserts equality
+- If admin lies about totals OR blindings, the assertion fails → **provably secure**
+
+**Key security property (homomorphic verification):**
+```
+Σ commit(amount_i, r_i) = commit(Σ amount_i, Σ r_i)
+```
+This means the on-chain aggregate (sum of individual commits) MUST equal the commit of the claimed totals. No way to fake it without breaking discrete log.
+
+**Privacy properties:**
+- Both `yes_contrib` and `no_contrib` are always non-zero random group elements
+- `commit(0, r) = h^r` is indistinguishable from `commit(amount, r')` without discrete log
+- Observer sees two random group elements per bet — cannot determine bet direction
+- Strictly stronger privacy than BHP256 hash chain (which was order-dependent and leaked structure)
+
+**Changes from BHP256 scheme:**
+- Removed: `aggregate_commitment` mapping, `CommitPair` struct, BHP256 hash chain logic
+- Added: `yes_aggregate_commit` and `no_aggregate_commit` mappings (group type)
+- `resolve_market`, `resolve_with_oracle`, `resolve_disputed`: now take `sum_blinding_yes: scalar` and `sum_blinding_no: scalar` parameters
+- Blindings derived from bet nonce: `blinding_yes = nonce as scalar`, `blinding_no = (nonce + 1) as scalar`
+
+### 🔒 Private Credits Consumption (ROADMAP)
+Investigated replacing `transfer_public_as_signer` with private credits record consumption to eliminate on-chain transfer amount visibility.
+
+**Finding:** Leo does not allow programs to consume or produce records defined by external programs (`credits.aleo`). Only the defining program can create/destroy its own records. Alternative patterns (`credits.aleo/transfer_private` to program address) also don't work because the program can't hold private record state.
+
+**Status:** Documented as a roadmap item. Requires either:
+1. Aleo protocol support for cross-program record consumption
+2. A wrapper pattern where credits.aleo provides a `burn`/`mint` interface
+3. Move to a token standard that supports private escrow natively
+
+Current approach (fixed tiers + `transfer_public_as_signer`) remains the best available privacy tradeoff.
+
+## Contract Changes (prediction_market_test004.aleo)
+- `place_bet`: Finalize only checks status + increments `bet_count` (no outcome/amount args)
+- `add_to_bet`: Same — no pool updates in finalize
+- `resolve_market`: Now takes `total_yes` + `total_no` as public args (deferred from betting)
+- `resolve_with_oracle`: Same — pool totals passed at resolution
+- New mapping: `bet_count: field => u64`
+- Removed: Real-time pool updates from user transitions
+- Stripped commit-reveal betting (added complexity without true direction privacy)
+
+## Privacy Hardening (3 Concerns Addressed)
+
+### Concern 1 — Claim Finalize Leak Fix (HIGH PRIORITY)
+**Problem**: `claim_winnings` finalize received `bet_outcome` and `bet_amount` as public args, leaking the claimer's direction and size.
+
+**Fix**: Payout calculation moved entirely into the transition (ZK circuit) which has private access to bet fields. The transition:
+- Asserts `bet.outcome == winning_outcome` (ZK proof the bet won — losers can't call it)
+- Computes payout from private `bet.amount` + public pool data
+- Calls `credits.aleo/transfer_public(bet.owner, payout)`
+
+Finalize ONLY verifies that the public args (`winning_outcome`, `total_yes`, `total_no`) match on-chain mappings. It **never sees** `bet_outcome` or `bet_amount`.
+
+### Concern 2 — Admin Trust / Dispute Mechanism (HIGH PRIORITY)
+**Problem**: Admin was the sole source of pool totals at resolution (from Supabase), with no way to challenge incorrect values.
+
+**Fix**: Added a dispute mechanism:
+- New `submit_bet_proof(bet: Bet)` transition — users submit their private bet records during a dispute window to prove they have real bets
+- `DISPUTE_BLOCKS = 1000` (~few hours) window after resolution
+- If `dispute_count >= DISPUTE_THRESHOLD (5)`, market enters `STATUS_DISPUTED (4)`
+- New `resolve_disputed()` admin function to re-resolve with corrected totals
+- `claim_winnings` blocked until dispute window closes
+- New mappings: `dispute_window_end`, `dispute_count`, `bet_submitted`
+
+### Concern 3 — Public Bet Sizes (MEDIUM)
+**Problem**: `transfer_public_as_signer` reveals exact amounts. While direction is hidden, unique amounts could be correlated.
+
+**Fix**: Fixed denomination betting tiers — bets must be exactly one of:
+- `TIER_1: 1000`, `TIER_2: 5000`, `TIER_3: 10000`, `TIER_4: 50000`, `TIER_5: 100000` microcredits
+- Both `place_bet` and `add_to_bet` enforce tier validation
+- Makes transfers indistinguishable within each tier — observer sees "someone bet 10000 on *something*" but can't link to direction
+- Users wanting larger bets place multiple tier bets (separate transactions)
+
+## Deployed
+- Contract: `prediction_market_test004.aleo` on Testnet Beta
+- Frontend: https://lasagna-markets.vercel.app
+- GitHub: https://github.com/ss251/private-prediction-market
+
+## Tech Stack
+- Leo (Aleo), credits.aleo, official_oracle_v2.aleo (interface)
+- React 18, TypeScript 5.9, Vite 7, @provablehq/sdk 0.9.15
+- @provablehq/aleo-wallet-adaptor-shield (Wave 2)
+- Supabase (positions + pool aggregates), Drizzle ORM, Recharts
+- TanStack React Query, Tailwind CSS 4

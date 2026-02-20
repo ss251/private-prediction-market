@@ -3,7 +3,7 @@
  * Used by contract transition tests.
  */
 
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { CONTRACT_DIR } from "./constants";
 
 const CONTRACT_PATH = CONTRACT_DIR;
@@ -31,14 +31,16 @@ export function leoRun(
   // Optionally override private key for caller identity
   const env: Record<string, string> = {
     ...process.env as Record<string, string>,
-    PATH: process.env.PATH || "",
+    PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    SHELL: process.env.SHELL || "/bin/sh",
   };
   if (options?.privateKey) {
     env.PRIVATE_KEY = options.privateKey;
   }
 
   try {
-    const stdout = execSync(cmd, {
+    const leoBin = process.env.LEO_BIN || "/Users/thescoho/.cargo/bin/leo";
+    const result = spawnSync(leoBin, ["run", transition, ...args], {
       cwd: CONTRACT_PATH,
       encoding: "utf-8",
       timeout: 60_000,
@@ -46,11 +48,23 @@ export function leoRun(
       stdio: ["pipe", "pipe", "pipe"],
     });
 
+    const stdout = result.stdout || "";
+    const stderr = result.stderr || "";
+
+    if (result.status !== 0) {
+      return {
+        success: false,
+        stdout,
+        stderr: stderr || result.error?.message || "",
+        output: "",
+      };
+    }
+
     // Extract output section
     const outputMatch = stdout.match(/➡️\s*Output\s*\n([\s\S]*?)$/);
     const output = outputMatch ? outputMatch[1].trim() : "";
 
-    return { success: true, stdout, stderr: "", output };
+    return { success: true, stdout, stderr, output };
   } catch (err: unknown) {
     const e = err as { stdout?: string; stderr?: string; message?: string };
     return {

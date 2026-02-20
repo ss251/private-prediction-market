@@ -1,19 +1,16 @@
 import { useState, useEffect } from "react";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
-import {
-  Transaction,
-  WalletAdapterNetwork,
-} from "@demox-labs/aleo-wallet-adapter-base";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import { getPublicBalance, formatCredits, PROGRAM_ID } from "../lib/aleo";
 import { useBetRecords } from "../hooks/useBetRecords";
+import { upsertUserPosition, incrementPoolTotal } from "../lib/supabase";
 
 interface Market {
   id: string;
   question: string;
-  yesPool: number;
-  noPool: number;
+  yesPool?: number;
+  noPool?: number;
   paused?: boolean;
 }
 
@@ -25,8 +22,13 @@ interface BetModalProps {
   initialOutcome?: "yes" | "no";
 }
 
+/**
+ * Modal for placing or adding to a bet on a prediction market.
+ * Supports both `place_bet` (new position) and `add_to_bet` (existing position).
+ * Displays current odds, potential winnings, and handles the full transaction lifecycle.
+ */
 export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome }: BetModalProps) {
-  const { publicKey, requestTransaction, transactionStatus } = useWallet();
+  const { address, executeTransaction, transactionStatus } = useWallet();
   const [outcome, setOutcome] = useState<"yes" | "no">(initialOutcome ?? "yes");
   const [amount, setAmount] = useState("");
   const [balance, setBalance] = useState<bigint | null>(null);
@@ -37,19 +39,19 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
   const [, setCheckingRecords] = useState(false);
 
   useEffect(() => {
-    if (!isOpen || !publicKey) {
+    if (!isOpen || !address) {
       setBalance(null);
       return;
     }
     setBalanceLoading(true);
-    getPublicBalance(publicKey)
+    getPublicBalance(address)
       .then(setBalance)
       .catch(() => setBalance(null))
       .finally(() => setBalanceLoading(false));
-  }, [isOpen, publicKey]);
+  }, [isOpen, address]);
 
   useEffect(() => {
-    if (!isOpen || !publicKey) {
+    if (!isOpen || !address) {
       setExistingRecord(null);
       return;
     }
@@ -63,7 +65,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
       setCheckingRecords(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, publicKey, outcome, market.id]);
+  }, [isOpen, address, outcome, market.id]);
 
   if (!isOpen) return null;
 
@@ -72,7 +74,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!publicKey || !requestTransaction) return;
+    if (!address || !executeTransaction) return;
 
     if (amountMicrocredits < 1000) {
       return;
@@ -81,28 +83,32 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
     const resultTxId = await execute(
       async () => {
         const functionName = existingRecord ? "add_to_bet" : "place_bet";
+        // Generate random nonce for Pedersen commitment privacy
+        const nonce = BigInt(Math.floor(Math.random() * 2 ** 64)) * BigInt(Math.floor(Math.random() * 2 ** 64));
         const inputs = existingRecord
-          ? [existingRecord, `${amountMicrocredits}u64`]
-          : [market.id, outcome === "yes" ? "true" : "false", `${amountMicrocredits}u64`];
+          ? [existingRecord, `${amountMicrocredits}u64`, `${nonce}u128`]
+          : [market.id, outcome === "yes" ? "true" : "false", `${amountMicrocredits}u64`, `${nonce}u128`];
 
-        const tx = Transaction.createTransaction(
-          publicKey,
-          WalletAdapterNetwork.TestnetBeta,
-          PROGRAM_ID,
-          functionName,
+        const result = await executeTransaction({
+          program: PROGRAM_ID,
+          function: functionName,
           inputs,
-          500_000,
-          false
-        );
-
-        const result = await requestTransaction(tx);
-        return result;
+          fee: 500_000,
+          privateFee: false,
+        });
+        return result?.transactionId ?? "";
       },
-      { statusFn: transactionStatus }
+      { statusFn: (txId: string) => transactionStatus(txId).then(r => r.status) }
     );
 
-    if (resultTxId && onBetPlaced) {
-      onBetPlaced();
+    if (resultTxId && address) {
+      // Report position + update pool aggregates in Supabase, then refetch
+      // Await both so the UI has fresh data when onBetPlaced triggers refetch
+      await Promise.all([
+        upsertUserPosition(address, market.id, outcome === "yes", amountMicrocredits).catch((e) => console.error("upsert position failed:", e)),
+        incrementPoolTotal(market.id, outcome === "yes", amountMicrocredits).catch((e) => console.error("increment pool failed:", e)),
+      ]);
+      if (onBetPlaced) onBetPlaced();
     }
   };
 
@@ -110,14 +116,6 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
     reset();
     onClose();
   };
-
-  const totalPool = market.yesPool + market.noPool;
-  const selectedPool = outcome === "yes" ? market.yesPool : market.noPool;
-
-  const currentOdds =
-    totalPool > 0 && selectedPool > 0
-      ? ((totalPool / selectedPool) * 0.98).toFixed(2)
-      : "2.00";
 
   const isExecuting = state !== "idle" && state !== "confirmed" && state !== "failed";
   const canSubmit = !isExecuting && amount && parseFloat(amount) >= 0.001 && !insufficientBalance && !market.paused;
@@ -229,25 +227,28 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
             )}
           </div>
 
-          {/* Odds display */}
+          {/* Bet info — privacy-aware */}
           <div className="bg-navy-900/60 border border-navy-600 rounded-xl p-3 mb-4">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Current Odds:</span>
-              <span className="text-white font-mono">{currentOdds}x</span>
-            </div>
-            <div className="flex justify-between text-sm mt-1">
-              <span className="text-gray-400">Potential Win:</span>
-              <span className="text-emerald-400 font-mono">
-                {amount
-                  ? (parseFloat(amount) * parseFloat(currentOdds)).toFixed(4)
-                  : "0.00"}{" "}
-                credits
+              <span className="text-gray-400">Your Bet:</span>
+              <span className="text-white font-mono">
+                {amount ? parseFloat(amount).toFixed(4) : "0.00"} credits
               </span>
             </div>
             <div className="flex justify-between text-sm mt-1">
-              <span className="text-gray-400">Pool Size:</span>
-              <span className="text-gray-300 font-mono">
-                {(totalPool / 1_000_000).toFixed(2)} credits
+              <span className="text-gray-400">Direction:</span>
+              <span className={outcome === "yes" ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+                {outcome.toUpperCase()}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 text-sm mt-1">
+              <span className="text-gray-400">Odds & Payout:</span>
+              <span className="text-privacy/60 font-mono text-xs flex items-center gap-1 ml-auto">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                Revealed at resolution
               </span>
             </div>
           </div>
@@ -258,8 +259,9 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
             <span>
-              Your bet is anonymous — your wallet address is never linked to
-              the bet on-chain. Direction, amount, and pool totals are public.
+              Your bet is fully private — direction is encrypted in your Bet record
+              and never appears on-chain. Pool totals are only revealed at resolution.
+              Only a bet count is incremented publicly.
             </span>
           </div>
 

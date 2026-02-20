@@ -1,14 +1,16 @@
 // Hook for market history using on-chain data
 
 import { useQuery } from "@tanstack/react-query";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { getMarketData, PROGRAM_ID, type MarketData } from "../lib/aleo";
 
+/** A user's aggregated bet position in a single market. */
 export interface UserPosition {
   yesAmount: bigint;
   noAmount: bigint;
 }
 
+/** Combined market chain data and user position returned by useMarketHistory. */
 export interface MarketHistoryData {
   userPosition: UserPosition | null;
   marketData: MarketData | null;
@@ -16,6 +18,10 @@ export interface MarketHistoryData {
   error: Error | null;
 }
 
+/**
+ * Fetches on-chain market data and the connected user's bet position.
+ * Re-fetches when the market ID or wallet address changes.
+ */
 export function useMarketHistory(
   marketId: string,
   userAddress: string | null,
@@ -55,7 +61,10 @@ export function useMarketHistory(
         for (const rec of rawRecords as unknown[]) {
           const data = rec as { market_id?: string; outcome?: string; amount?: string };
           if (!data.market_id || !data.amount) continue;
-          if (String(data.market_id) !== marketId) continue;
+          // Normalize: record may have "3field" while marketId may be "3field" or "3"
+          const recordMarketId = String(data.market_id).replace(/field$/, "");
+          const normalizedMarketId = marketId.replace(/field$/, "");
+          if (recordMarketId !== normalizedMarketId) continue;
 
           const outcome = String(data.outcome) === "true";
           const amount = BigInt(String(data.amount).replace(/u64$/, ""));
@@ -75,8 +84,9 @@ export function useMarketHistory(
     },
     enabled: enabled && !!userAddress && !!requestRecords,
     // Never auto-refetch: requestRecords triggers a wallet popup each time.
+    // But retry once when wallet becomes available (address changes).
     refetchInterval: false,
-    staleTime: Infinity,
+    staleTime: 5 * 60_000,
   });
 
   return {

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import type {} from "@tanstack/react-query";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
@@ -18,11 +18,18 @@ import {
   type OnChainPosition,
 } from "../hooks/useUserPositions";
 import { useMarkets, type DisplayMarket } from "../hooks/useMarkets";
+import { useAdmin } from "../hooks/useAdmin";
 
 type ModalType = "bet" | "claim" | "refund" | "resolve" | "create";
 
+/**
+ * Main market listing component. Fetches markets from Supabase (with chain fallback),
+ * manages user positions, and renders MarketCards in an animated grid.
+ * Handles modal orchestration for bet/claim/refund/resolve/create actions.
+ */
 export function MarketList() {
   const { connected } = useWallet();
+  const { isAdmin } = useAdmin();
   const [selectedMarket, setSelectedMarket] = useState<DisplayMarket | null>(
     null
   );
@@ -189,6 +196,7 @@ export function MarketList() {
               onRefund={() => handleRefund(market)}
               onResolve={() => handleResolve(market)}
               userPosition={position}
+              isAdmin={isAdmin}
             />
             </div>
           );
@@ -268,6 +276,7 @@ export function MarketList() {
             question={selectedMarket.question}
             yesPool={selectedChainMarket?.yesPool ?? BigInt(selectedMarket.yesPool)}
             noPool={selectedChainMarket?.noPool ?? BigInt(selectedMarket.noPool)}
+            oracleEnabled={selectedChainMarket?.oracleEnabled}
             isOpen={true}
             onClose={handleModalClose}
             onResolved={() => {

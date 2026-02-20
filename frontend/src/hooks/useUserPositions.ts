@@ -1,12 +1,21 @@
-// Position tracking from wallet Bet records (private, not public mappings)
-//
-// IMPORTANT: requestRecords() triggers a wallet approval popup every time.
-// This hook must NEVER run automatically. Callers use refetch() explicitly
-// after user-initiated actions (bet placed, claim, refund, modal open).
+/**
+ * User position tracking via Supabase.
+ *
+ * Positions are stored in the `user_positions` table, populated when
+ * bets are placed (frontend reports via `upsertUserPosition`) and
+ * reconciled by the indexer every 60s. Loads instantly via a single
+ * Supabase REST call — no wallet popup required.
+ *
+ * The optional `verifyOnChain()` method uses `requestRecords()` for
+ * users who want cryptographic proof, but it's never called automatically.
+ */
 import { useCallback, useState } from "react";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchUserPositions, upsertUserPositionFull } from "../lib/supabase";
 import { PROGRAM_ID } from "../lib/aleo";
 
+/** Aggregated on-chain position for a single market. */
 export interface OnChainPosition {
   marketId: string;
   yesAmount: bigint;
@@ -14,71 +23,130 @@ export interface OnChainPosition {
 }
 
 interface RawRecord {
-  owner?: string;
   market_id?: string;
   outcome?: string;
   amount?: string;
-  _nonce?: string;
 }
 
+/** Extract data fields from a wallet record (handles nested `data` property or flat). */
+function extractRecordData(rec: unknown): RawRecord | null {
+  if (!rec || typeof rec !== "object") return null;
+  const obj = rec as Record<string, unknown>;
+  // Some wallets nest fields under `data`
+  const data = (obj.data && typeof obj.data === "object" ? obj.data : obj) as Record<string, unknown>;
+  if (!data.market_id && !data.amount) return null;
+  return {
+    market_id: data.market_id != null ? String(data.market_id) : undefined,
+    outcome: data.outcome != null ? String(data.outcome) : undefined,
+    amount: data.amount != null ? String(data.amount) : undefined,
+  };
+}
+
+/** Parse wallet records into positions (used only by verifyOnChain). */
 function parseRecords(rawRecords: unknown[]): OnChainPosition[] {
   const byMarket = new Map<string, { yes: bigint; no: bigint }>();
-
   for (const rec of rawRecords) {
     try {
-      const data = rec as RawRecord;
-      if (!data.market_id || !data.amount) continue;
-
-      const marketId = String(data.market_id);
-      const outcome = String(data.outcome) === "true";
-      const amountStr = String(data.amount).replace(/u64$/, "");
-      const amount = BigInt(amountStr);
-
+      const data = extractRecordData(rec);
+      if (!data?.market_id || !data.amount) continue;
+      // Keep the "field" suffix to match Supabase market_id format (e.g. "1field")
+      let marketId = String(data.market_id).replace(/\.private$/, "").replace(/\.public$/, "");
+      if (!marketId.endsWith("field")) marketId = marketId + "field";
+      const outcome = String(data.outcome).replace(/\.private$/, "") === "true";
+      const amount = BigInt(String(data.amount).replace(/u64$/, "").replace(/\.private$/, ""));
       const existing = byMarket.get(marketId) ?? { yes: 0n, no: 0n };
-      if (outcome) {
-        existing.yes += amount;
-      } else {
-        existing.no += amount;
-      }
+      if (outcome) existing.yes += amount;
+      else existing.no += amount;
       byMarket.set(marketId, existing);
-    } catch {
-      continue;
-    }
+    } catch { continue; }
   }
-
-  return Array.from(byMarket.entries()).map(([marketId, amounts]) => ({
+  return Array.from(byMarket.entries()).map(([marketId, a]) => ({
     marketId,
-    yesAmount: amounts.yes,
-    noAmount: amounts.no,
+    yesAmount: a.yes,
+    noAmount: a.no,
   }));
 }
 
 /**
- * Returns user positions from wallet records.
- * Does NOT fetch automatically — call `refetch()` explicitly when needed.
+ * Hook for user positions backed by Supabase.
+ *
+ * Loads positions automatically when a wallet is connected —
+ * no popup, no delay. Uses react-query for caching and refetching.
+ *
+ * @param marketIds - Market IDs to fetch positions for.
  */
 export function useUserPositions(marketIds: string[]) {
-  const { publicKey, requestRecords } = useWallet();
-  const [data, setData] = useState<OnChainPosition[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const { address, requestRecords } = useWallet();
+  const [verifiedData, setVerifiedData] = useState<OnChainPosition[] | null>(null);
+  const [verifyLoading, setVerifyLoading] = useState(false);
 
-  const refetch = useCallback(async () => {
-    if (!publicKey || !requestRecords || marketIds.length === 0) {
-      setData([]);
-      return;
-    }
+  // Keep market IDs as-is (e.g. "1field") to match Supabase market_id format
+  const normalizedIds = marketIds;
 
-    setIsLoading(true);
+  // Primary: Supabase query (instant, no popup)
+  const { data: supabasePositions, isLoading, refetch } = useQuery({
+    queryKey: ["userPositions", address, normalizedIds.join(",")],
+    queryFn: () => fetchUserPositions(address!, normalizedIds),
+    enabled: !!address && normalizedIds.length > 0,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
+  });
+
+  // Convert Supabase rows to OnChainPosition format
+  const supabaseData: OnChainPosition[] = (supabasePositions ?? []).map((sp) => ({
+    marketId: sp.marketId,
+    yesAmount: BigInt(sp.yesAmount),
+    noAmount: BigInt(sp.noAmount),
+  }));
+
+  const data: OnChainPosition[] = verifiedData ?? supabaseData;
+  const hasFetched = !isLoading && !!address;
+
+  /**
+   * Sync positions from wallet records to Supabase.
+   * Triggers a wallet popup, reads on-chain records, persists to DB,
+   * then refetches so future loads are instant.
+   */
+  const syncFromChain = useCallback(async () => {
+    if (!address || !requestRecords || marketIds.length === 0) return;
+    setVerifyLoading(true);
     try {
       const rawRecords = await requestRecords(PROGRAM_ID);
+      console.log("[syncFromChain] rawRecords:", JSON.stringify(rawRecords, (_k, v) => typeof v === "bigint" ? v.toString() : v, 2));
       const positions = parseRecords(rawRecords as unknown[]);
-      setData(positions.filter((p) => marketIds.includes(p.marketId)));
-    } catch {
-      // User rejected or wallet error — keep existing data
-    } finally {
-      setIsLoading(false);
-    }
-  }, [publicKey, requestRecords, marketIds]);
+      console.log("[syncFromChain] parsed positions:", positions);
+      console.log("[syncFromChain] normalizedIds:", normalizedIds);
+      const relevant = positions.filter((p) => normalizedIds.includes(p.marketId));
+      console.log("[syncFromChain] relevant:", relevant);
+      setVerifiedData(relevant);
 
-  return { data, isLoading, refetch };
+      // Persist to Supabase so future loads are instant
+      await Promise.all(
+        relevant.map((p) => {
+          const totalYes = Number(p.yesAmount);
+          const totalNo = Number(p.noAmount);
+          // Upsert with the full amounts (replace, not add)
+          return upsertUserPositionFull(address, p.marketId, totalYes, totalNo);
+        }),
+      );
+
+      // Refetch Supabase data so it's in sync
+      await refetch();
+    } catch {
+      // User rejected wallet popup — keep existing data
+    } finally {
+      setVerifyLoading(false);
+    }
+  }, [address, requestRecords, marketIds, normalizedIds, refetch]);
+
+  return {
+    data,
+    isLoading: isLoading || verifyLoading,
+    hasFetched,
+    refetch: async () => {
+      setVerifiedData(null);
+      await refetch();
+    },
+    syncFromChain,
+  };
 }

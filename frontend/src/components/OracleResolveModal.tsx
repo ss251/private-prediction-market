@@ -1,9 +1,5 @@
 import { useState } from "react";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
-import {
-  Transaction,
-  WalletAdapterNetwork,
-} from "@demox-labs/aleo-wallet-adapter-base";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import { PROGRAM_ID, formatCredits } from "../lib/aleo";
@@ -13,11 +9,17 @@ interface ResolveModalProps {
   question: string;
   yesPool: bigint;
   noPool: bigint;
+  oracleEnabled?: boolean;
   isOpen: boolean;
   onClose: () => void;
   onResolved?: () => void;
 }
 
+/**
+ * Modal for resolving a closed market by selecting the winning outcome.
+ * Calls the `resolve_market` on-chain transition. Only the contract admin
+ * can successfully execute this action.
+ */
 export function ResolveModal({
   marketId,
   question,
@@ -27,34 +29,35 @@ export function ResolveModal({
   onClose,
   onResolved,
 }: ResolveModalProps) {
-  const { publicKey, requestTransaction, transactionStatus } =
+  const { address, executeTransaction, transactionStatus } =
     useWallet();
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
 
   const [outcome, setOutcome] = useState<boolean>(true);
 
-  if (!isOpen) return null;
+  if (!isOpen || !address || !transactionStatus) return null;
 
   const totalPool = yesPool + noPool;
 
   const handleResolve = async () => {
-    if (!publicKey || !requestTransaction) return;
+    if (!address || !executeTransaction) return;
 
     const resultTxId = await execute(
       async () => {
-        const tx = Transaction.createTransaction(
-          publicKey,
-          WalletAdapterNetwork.TestnetBeta,
-          PROGRAM_ID,
-          "resolve_market",
-          [marketId, `${outcome}`],
-          500_000
-        );
-
-        const result = await requestTransaction(tx);
-        return result;
+        const result = await executeTransaction({
+          program: PROGRAM_ID,
+          function: "resolve_market",
+          inputs: [
+            marketId,
+            `${outcome}`,
+            `${yesPool}u64`,
+            `${noPool}u64`,
+          ],
+          fee: 500_000,
+        });
+        return result?.transactionId ?? "";
       },
-      { statusFn: transactionStatus }
+      { statusFn: (txId: string) => transactionStatus(txId).then(r => typeof r === 'string' ? r : r.status) }
     );
 
     if (resultTxId && onResolved) {
@@ -151,8 +154,9 @@ export function ResolveModal({
           </svg>
           <span>
             Only the contract admin can resolve markets. This calls
-            resolve_market on-chain. Winning bettors can then claim their
-            payouts.
+            resolve_market on-chain with the final pool totals — the first
+            time aggregate data appears on-chain. Winning bettors can then
+            claim their payouts.
           </span>
         </div>
 
