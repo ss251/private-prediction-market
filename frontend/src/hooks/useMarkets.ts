@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { fetchMarkets, supabase } from "../lib/supabase";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchMarkets, subscribeToMarkets, supabase } from "../lib/supabase";
 import { getAllMarketIds, getMarkets, getMappingValue, type MarketData } from "../lib/aleo";
 import {
   fetchMarketRegistry,
@@ -193,6 +194,8 @@ async function fetchMarketsFromChain(): Promise<DisplayMarket[]> {
  * to be "resolved" (from chain), no stale Supabase data can revert it.
  */
 export function useMarkets() {
+  const queryClient = useQueryClient();
+
   const query = useQuery({
     queryKey: ["markets"],
     queryFn: async (): Promise<DisplayMarket[]> => {
@@ -222,11 +225,27 @@ export function useMarkets() {
     refetchInterval: 60_000,
   });
 
-  // Realtime disabled — Supabase data is unreliable (status/outcome reverts).
-  // Chain is source of truth; the 60s refetchInterval + crossReferenceChain
-  // + high-water-mark cache handles updates. Realtime was injecting stale
-  // Supabase data between refetches, causing resolved markets to flicker
-  // back to "closed".
+  // Realtime: subscribe to market row changes.
+  // Realtime events come directly from the PostgreSQL WAL (not CDN-cached),
+  // so they reflect the true database state.
+  useEffect(() => {
+    const channel = subscribeToMarkets((updated) => {
+      queryClient.setQueryData<DisplayMarket[]>(["markets"], (old) => {
+        if (!old) return old;
+        const display = supabaseRowToDisplay(updated);
+        // Apply high-water-mark before updating cache
+        const safe = applyHighWater(display);
+        const exists = old.some((m) => m.id === safe.id);
+        if (exists) {
+          return old.map((m) => (m.id === safe.id ? safe : m));
+        }
+        return [safe, ...old];
+      });
+    });
+    return () => {
+      channel?.unsubscribe();
+    };
+  }, [queryClient]);
 
   return query;
 }
