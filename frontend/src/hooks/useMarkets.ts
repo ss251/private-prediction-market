@@ -113,7 +113,8 @@ export function useMarkets() {
       if (supabase) {
         try {
           // Auto-close expired markets before fetching (aggregates pools)
-          await supabase.rpc("close_expired_markets").catch(() => {});
+          const { error: closeErr } = await supabase.rpc("close_expired_markets");
+          if (closeErr) console.warn("close_expired_markets RPC:", closeErr.message);
 
           const markets = await fetchMarkets();
           if (markets.length > 0) {
