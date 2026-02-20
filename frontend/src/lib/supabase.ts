@@ -132,7 +132,7 @@ export async function upsertUserPosition(
     .select("yes_amount, no_amount")
     .eq("wallet_address", walletAddress)
     .eq("market_id", marketId)
-    .single();
+    .maybeSingle();
 
   const currentYes = Number(existing?.yes_amount ?? 0);
   const currentNo = Number(existing?.no_amount ?? 0);
@@ -224,12 +224,12 @@ export async function accumulateBlindings(
   const blindingYes = nonce;
   const blindingNo = nonce + 1n;
 
-  // Read current sums
+  // Read current sums (maybeSingle: no row = null, not 406)
   const { data: existing } = await supabase
     .from("market_blindings")
     .select("sum_blinding_yes, sum_blinding_no")
     .eq("market_id", marketId)
-    .single();
+    .maybeSingle();
 
   const currentYes = BigInt(existing?.sum_blinding_yes ?? "0");
   const currentNo = BigInt(existing?.sum_blinding_no ?? "0");
@@ -258,7 +258,7 @@ export async function fetchBlindings(
     .from("market_blindings")
     .select("sum_blinding_yes, sum_blinding_no")
     .eq("market_id", marketId)
-    .single();
+    .maybeSingle();
 
   if (error || !data) return { sumBlindingYes: 0n, sumBlindingNo: 0n };
 
