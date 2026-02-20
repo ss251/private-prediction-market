@@ -121,16 +121,30 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPo
         </div>
       )}
 
-      {/* Static display (when not open or not connected, and not resolved/cancelled) */}
+      {/* Static display (when not open or not connected) */}
       {(!isOpen || !connected) && !isResolved && !isCancelled && (
         <div className="grid grid-cols-2 gap-2 mb-3">
-          {/* Pool percentages only revealed after resolution */}
-          <div className="flex items-center justify-center px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15">
-            <span className="text-emerald-400 text-sm font-bold">Yes</span>
-          </div>
-          <div className="flex items-center justify-center px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15">
-            <span className="text-rose-400 text-sm font-bold">No</span>
-          </div>
+          {isOpen ? (
+            <>
+              <div className="flex items-center justify-center px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15">
+                <span className="text-emerald-400 text-sm font-bold">Yes</span>
+              </div>
+              <div className="flex items-center justify-center px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15">
+                <span className="text-rose-400 text-sm font-bold">No</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-emerald-500/10 border-2 border-emerald-500/15">
+                <span className="text-emerald-400 text-sm font-bold">Yes</span>
+                <span className="text-emerald-400 font-mono text-sm font-bold">{yesPercent.toFixed(0)}%</span>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-rose-500/10 border-2 border-rose-500/15">
+                <span className="text-rose-400 text-sm font-bold">No</span>
+                <span className="text-rose-400 font-mono text-sm font-bold">{noPercent.toFixed(0)}%</span>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -181,9 +195,7 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPo
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
-          {isResolved ? (
-            "Anonymous"
-          ) : (
+          {isOpen ? (
             <span className="flex items-center gap-1">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -191,10 +203,12 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPo
               </svg>
               Pool hidden
             </span>
+          ) : (
+            "Anonymous"
           )}
         </div>
         <div className="flex items-center gap-3 text-[11px] text-gray-600">
-          {isResolved && <span className="font-mono">{totalPoolFormatted} credits</span>}
+          {!isOpen && <span className="font-mono">{totalPoolFormatted} credits</span>}
           <Link
             to={`/market/${market.id}`}
             className="text-accent-light hover:text-accent transition-colors font-medium"
