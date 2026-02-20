@@ -7,7 +7,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const API_URL = "https://api.explorer.provable.com/v1/testnet";
-const PROGRAM_ID = "prediction_market_test005.aleo";
+const PROGRAM_ID = "prediction_market_test007.aleo";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 

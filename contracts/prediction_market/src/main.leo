@@ -6,7 +6,23 @@
 import credits.aleo;
 import official_oracle_v2.aleo;
 
-program prediction_market_test005.aleo {
+program prediction_market_test007.aleo {
+    // ========================================
+    // HELPER FUNCTIONS (Truly Homomorphic Commitments)
+    // ========================================
+
+    // Standard Pedersen commitment generators: comm = m*G + r*H
+    // Unlike Pedersen128::commit_to_group which uses bit-decomposition (NOT homomorphic),
+    // this uses scalar multiplication which IS additively homomorphic:
+    //   commit(a, r1) + commit(b, r2) = commit(a+b, r1+r2)
+    inline get_g() -> group {
+        return group::GEN;
+    }
+
+    inline get_h() -> group {
+        return Poseidon2::hash_to_group(0field);
+    }
+
     // ========================================
     // CONSTANTS
     // ========================================
@@ -244,8 +260,8 @@ program prediction_market_test005.aleo {
         // Verify pool totals against Pedersen aggregate commitments
         let agg_yes: group = Mapping::get_or_use(yes_aggregate_commit, market_id, 0group);
         let agg_no: group = Mapping::get_or_use(no_aggregate_commit, market_id, 0group);
-        let expected_yes: group = Pedersen128::commit_to_group(total_yes, sum_blinding_yes);
-        let expected_no: group = Pedersen128::commit_to_group(total_no, sum_blinding_no);
+        let expected_yes: group = (total_yes as scalar) * get_g() + sum_blinding_yes * get_h();
+        let expected_no: group = (total_no as scalar) * get_g() + sum_blinding_no * get_h();
         assert_eq(agg_yes, expected_yes);
         assert_eq(agg_no, expected_no);
 
@@ -332,8 +348,8 @@ program prediction_market_test005.aleo {
         // Verify pool totals against Pedersen aggregate commitments
         let agg_yes: group = Mapping::get_or_use(yes_aggregate_commit, market_id, 0group);
         let agg_no: group = Mapping::get_or_use(no_aggregate_commit, market_id, 0group);
-        let expected_yes: group = Pedersen128::commit_to_group(total_yes, sum_blinding_yes);
-        let expected_no: group = Pedersen128::commit_to_group(total_no, sum_blinding_no);
+        let expected_yes: group = (total_yes as scalar) * get_g() + sum_blinding_yes * get_h();
+        let expected_no: group = (total_no as scalar) * get_g() + sum_blinding_no * get_h();
         assert_eq(agg_yes, expected_yes);
         assert_eq(agg_no, expected_no);
 
@@ -525,8 +541,8 @@ program prediction_market_test005.aleo {
         // Verify pool totals against Pedersen aggregate commitments
         let agg_yes: group = Mapping::get_or_use(yes_aggregate_commit, market_id, 0group);
         let agg_no: group = Mapping::get_or_use(no_aggregate_commit, market_id, 0group);
-        let expected_yes: group = Pedersen128::commit_to_group(total_yes, sum_blinding_yes);
-        let expected_no: group = Pedersen128::commit_to_group(total_no, sum_blinding_no);
+        let expected_yes: group = (total_yes as scalar) * get_g() + sum_blinding_yes * get_h();
+        let expected_no: group = (total_no as scalar) * get_g() + sum_blinding_no * get_h();
         assert_eq(agg_yes, expected_yes);
         assert_eq(agg_no, expected_no);
 
@@ -571,7 +587,7 @@ program prediction_market_test005.aleo {
 
         // Transfer credits from bettor to program (public transfer)
         let transfer_future: Future = credits.aleo/transfer_public_as_signer(
-            prediction_market_test005.aleo,
+            prediction_market_test007.aleo,
             amount
         );
 
@@ -593,8 +609,8 @@ program prediction_market_test005.aleo {
         let no_amount: u64 = outcome ? 0u64 : amount;
 
         // Pedersen commitments — BOTH are always non-zero group elements
-        let yes_contrib: group = Pedersen128::commit_to_group(yes_amount, blinding_yes);
-        let no_contrib: group = Pedersen128::commit_to_group(no_amount, blinding_no);
+        let yes_contrib: group = (yes_amount as scalar) * get_g() + blinding_yes * get_h();
+        let no_contrib: group = (no_amount as scalar) * get_g() + blinding_no * get_h();
 
         // Finalize checks market status, increments bet count, and adds to aggregate commitments
         return (bet, finalize_place_bet(market_id, yes_contrib, no_contrib, transfer_future));
@@ -642,7 +658,7 @@ program prediction_market_test005.aleo {
         assert(valid_tier);
 
         let transfer_future: Future = credits.aleo/transfer_public_as_signer(
-            prediction_market_test005.aleo,
+            prediction_market_test007.aleo,
             additional_amount
         );
 
@@ -663,8 +679,8 @@ program prediction_market_test005.aleo {
         let no_amount: u64 = existing_bet.outcome ? 0u64 : additional_amount;
 
         // Pedersen commitments
-        let yes_contrib: group = Pedersen128::commit_to_group(yes_amount, blinding_yes);
-        let no_contrib: group = Pedersen128::commit_to_group(no_amount, blinding_no);
+        let yes_contrib: group = (yes_amount as scalar) * get_g() + blinding_yes * get_h();
+        let no_contrib: group = (no_amount as scalar) * get_g() + blinding_no * get_h();
 
         // Finalize: check market status, add to aggregate commitments
         return (new_bet, finalize_add_to_bet(existing_bet.market_id, yes_contrib, no_contrib, transfer_future));
