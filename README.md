@@ -560,7 +560,7 @@ private-prediction-market/
 
 - [PriceProof](https://github.com/bendyarm/priceproof) - parimutuel prediction market reference implementation by an Aleo core contributor. Informed the singleton mapping pattern and claim-before-verify approach.
 - [Aleo Privacy Buildathon](https://app.akindo.io/wave-hacks/gXdXJvJXxTJKBELvo) - for the platform and support.
-- [Shield Wallet](https://shieldwallet.app/) by Provable - wallet integration with delegated proving.
+- [Shield Wallet](https://aleo.org/shield/) by Provable - wallet integration with delegated proving.
 - [zkPortal Oracle](https://zkportal.io/) - attested data feeds for oracle-based resolution.
 
 ## 11. License
