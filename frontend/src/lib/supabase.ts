@@ -196,24 +196,11 @@ export async function incrementPoolTotal(
   amount: number,
 ): Promise<void> {
   if (!supabase) return;
-  // Read current pools
-  const { data: market } = await supabase
-    .from("markets")
-    .select("yes_pool, no_pool")
-    .eq("market_id", marketId)
-    .single();
-
-  const currentYes = Number(market?.yes_pool ?? 0);
-  const currentNo = Number(market?.no_pool ?? 0);
-
-  const newYes = outcome ? currentYes + amount : currentYes;
-  const newNo = outcome ? currentNo : currentNo + amount;
-
-  const { error } = await supabase.from("markets").update({
-    yes_pool: newYes,
-    no_pool: newNo,
-    chain_updated_at: new Date().toISOString(),
-  }).eq("market_id", marketId);
+  const { error } = await supabase.rpc("increment_pool", {
+    p_market_id: marketId,
+    p_outcome: outcome,
+    p_amount: amount,
+  });
   if (error) console.error("Failed to increment pool total:", error);
 }
 
