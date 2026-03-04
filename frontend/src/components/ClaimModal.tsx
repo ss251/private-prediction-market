@@ -71,7 +71,7 @@ export function ClaimModal({
         const result = await executeTransaction({
           program: PROGRAM_ID,
           function: "claim_winnings",
-          inputs: [winningRecord.raw, `${totalPayout}u64`],
+          inputs: [winningRecord.raw, winningOutcome ? "true" : "false", `${yesPool}u64`, `${noPool}u64`],
           fee: 500_000,
         });
         return result?.transactionId ?? "";
