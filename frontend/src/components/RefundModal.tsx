@@ -33,6 +33,7 @@ export function RefundModal({
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
   const { fetchBetRecords, loading: recordsLoading } = useBetRecords();
   const [recordError, setRecordError] = useState<string | null>(null);
+  const [refundProgress, setRefundProgress] = useState<{ current: number; total: number } | null>(null);
 
   if (!isOpen || !address || !transactionStatus) return null;
 
@@ -55,22 +56,37 @@ export function RefundModal({
       return;
     }
 
-    const record = records[0];
+    setRefundProgress({ current: 0, total: records.length });
 
-    const resultTxId = await execute(
-      async () => {
-        const result = await executeTransaction({
-          program: PROGRAM_ID,
-          function: "claim_refund",
-          inputs: [record.raw],
-          fee: 500_000,
-        });
-        return result?.transactionId ?? "";
-      },
-      { statusFn: (txId: string) => transactionStatus(txId).then(r => r.status) }
-    );
+    for (let i = 0; i < records.length; i++) {
+      setRefundProgress({ current: i + 1, total: records.length });
 
-    if (resultTxId && onRefunded) {
+      const resultTxId = await execute(
+        async () => {
+          const result = await executeTransaction({
+            program: PROGRAM_ID,
+            function: "claim_refund",
+            inputs: [records[i].raw],
+            fee: 500_000,
+          });
+          return result?.transactionId ?? "";
+        },
+        { statusFn: (txId: string) => transactionStatus(txId).then(r => r.status) }
+      );
+
+      if (!resultTxId) {
+        // Stop processing on failure so user can retry
+        return;
+      }
+
+      // Reset transaction state for the next record
+      if (i < records.length - 1) {
+        reset();
+      }
+    }
+
+    setRefundProgress(null);
+    if (onRefunded) {
       onRefunded();
     }
   };
@@ -164,6 +180,13 @@ export function RefundModal({
             separate refund transaction.
           </span>
         </div>
+
+        {/* Refund progress */}
+        {refundProgress && (
+          <div className="mb-4 p-3 rounded-xl bg-navy-900/60 border border-navy-600 text-center text-sm text-gray-300">
+            Refunding {refundProgress.current} of {refundProgress.total}...
+          </div>
+        )}
 
         {/* Transaction progress */}
         <TransactionProgress
