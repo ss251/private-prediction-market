@@ -229,12 +229,13 @@ export function useMarkets() {
   // Realtime events come directly from the PostgreSQL WAL (not CDN-cached),
   // so they reflect the true database state.
   useEffect(() => {
-    const channel = subscribeToMarkets((updated) => {
+    const channel = subscribeToMarkets(async (updated) => {
+      const display = supabaseRowToDisplay(updated);
+      // Cross-reference chain before applying high-water-mark
+      const checked = await crossReferenceChain(display);
+      const safe = applyHighWater(checked);
       queryClient.setQueryData<DisplayMarket[]>(["markets"], (old) => {
         if (!old) return old;
-        const display = supabaseRowToDisplay(updated);
-        // Apply high-water-mark before updating cache
-        const safe = applyHighWater(display);
         const exists = old.some((m) => m.id === safe.id);
         if (exists) {
           return old.map((m) => (m.id === safe.id ? safe : m));
