@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
-import { getUsdcxBalance, getPublicBalance, formatUSDC, formatCredits, PROGRAM_ID } from "../lib/aleo";
+import { getUsdcxBalance, getPublicBalance, formatUSDC, PROGRAM_ID } from "../lib/aleo";
 import { useBetRecords } from "../hooks/useBetRecords";
 import { incrementPoolTotal, accumulateBlindings } from "../lib/supabase";
 
