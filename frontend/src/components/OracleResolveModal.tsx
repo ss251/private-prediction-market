@@ -50,8 +50,8 @@ export function ResolveModal({
           inputs: [
             marketId,
             `${outcome}`,
-            `${yesPool}u64`,
-            `${noPool}u64`,
+            `${yesPool}u128`,
+            `${noPool}u128`,
           ],
           fee: 500_000,
         });

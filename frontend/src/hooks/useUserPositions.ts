@@ -1,9 +1,8 @@
 /**
  * User position tracking via Supabase.
  *
- * Positions are stored in the `user_positions` table, populated when
- * bets are placed (frontend reports via `upsertUserPosition`) and
- * reconciled by the indexer every 60s. Loads instantly via a single
+ * Positions are stored in the `user_positions` table, populated by
+ * the indexer every 60s. Loads instantly via a single
  * Supabase REST call — no wallet popup required.
  *
  * The optional `verifyOnChain()` method uses `requestRecords()` for
