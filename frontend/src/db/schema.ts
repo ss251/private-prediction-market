@@ -1,5 +1,5 @@
 import {
-  pgTable, text, smallint, bigint, boolean, timestamp,
+  pgTable, text, smallint, integer, bigint, boolean, timestamp,
   numeric, index, serial,
 } from "drizzle-orm/pg-core";
 
@@ -61,8 +61,8 @@ export const poolSnapshots = pgTable("pool_snapshots", {
 // --- Platform-wide stats (singleton row) ---
 export const platformStats = pgTable("platform_stats", {
   id: boolean("id").primaryKey().default(true),
-  totalMarkets: smallint("total_markets").default(0),
-  openMarkets: smallint("open_markets").default(0),
+  totalMarkets: integer("total_markets").default(0),
+  openMarkets: integer("open_markets").default(0),
   totalVolume: bigint("total_volume", { mode: "number" }).default(0),
   lastIndexedAt: timestamp("last_indexed_at"),
 });
@@ -83,7 +83,7 @@ export const userPositions = pgTable("user_positions", {
 // --- Indexer cursor ---
 export const indexerState = pgTable("indexer_state", {
   id: boolean("id").primaryKey().default(true),
-  lastMarketCount: smallint("last_market_count").default(0),
+  lastMarketCount: integer("last_market_count").default(0),
   lastRunAt: timestamp("last_run_at"),
   lastError: text("last_error"),
 });
