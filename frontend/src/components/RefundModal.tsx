@@ -33,6 +33,7 @@ export function RefundModal({
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
   const { fetchBetRecords, loading: recordsLoading } = useBetRecords();
   const [recordError, setRecordError] = useState<string | null>(null);
+  const [refundProgress, setRefundProgress] = useState<{ current: number; total: number } | null>(null);
 
   if (!isOpen || !address || !transactionStatus) return null;
 
@@ -45,6 +46,7 @@ export function RefundModal({
     if (!address || !executeTransaction || !hasPosition) return;
 
     setRecordError(null);
+    setRefundProgress(null);
 
     const records = await fetchBetRecords(marketId);
 
@@ -55,22 +57,41 @@ export function RefundModal({
       return;
     }
 
-    const record = records[0];
+    // Process each record separately — contract accepts one Bet per claim_refund call
+    setRefundProgress({ current: 0, total: records.length });
+    let successCount = 0;
 
-    const resultTxId = await execute(
-      async () => {
-        const result = await executeTransaction({
-          program: PROGRAM_ID,
-          function: "claim_refund",
-          inputs: [record.raw],
-          fee: 500_000,
-        });
-        return result?.transactionId ?? "";
-      },
-      { statusFn: (txId: string) => transactionStatus(txId).then(r => r.status) }
-    );
+    for (let i = 0; i < records.length; i++) {
+      setRefundProgress({ current: i + 1, total: records.length });
 
-    if (resultTxId && onRefunded) {
+      const resultTxId = await execute(
+        async () => {
+          const result = await executeTransaction({
+            program: PROGRAM_ID,
+            function: "claim_refund",
+            inputs: [records[i].raw],
+            fee: 500_000,
+          });
+          return result?.transactionId ?? "";
+        },
+        { statusFn: (txId: string) => transactionStatus(txId).then(r => r.status) }
+      );
+
+      if (resultTxId) {
+        successCount++;
+        // Reset transaction state for next iteration (unless last)
+        if (i < records.length - 1) reset();
+      } else {
+        // Transaction failed — stop and let user retry
+        setRecordError(
+          `Refund failed on record ${i + 1} of ${records.length}. You can retry to continue.`
+        );
+        return;
+      }
+    }
+
+    setRefundProgress(null);
+    if (successCount > 0 && onRefunded) {
       onRefunded();
     }
   };
@@ -164,6 +185,13 @@ export function RefundModal({
             separate refund transaction.
           </span>
         </div>
+
+        {/* Refund progress */}
+        {refundProgress && refundProgress.total > 1 && (
+          <div className="mb-3 p-2 bg-navy-900/60 border border-navy-600 rounded-xl text-center text-sm text-gray-300">
+            Refunding record {refundProgress.current} of {refundProgress.total}
+          </div>
+        )}
 
         {/* Transaction progress */}
         <TransactionProgress
