@@ -21,7 +21,10 @@ function parseRawRecord(raw: Record<string, unknown>): BetRecord | null {
       outcome?: string;
       amount?: string;
       _nonce?: string;
+      spent?: boolean;
     };
+    // Filter out spent (already consumed) records
+    if (data.spent === true) return null;
     if (!data.market_id || !data.amount) return null;
 
     const marketId = String(data.market_id);

@@ -30,7 +30,16 @@ interface BetModalProps {
 export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome }: BetModalProps) {
   const { address, executeTransaction, transactionStatus } = useWallet();
   const [outcome, setOutcome] = useState<"yes" | "no">(initialOutcome ?? "yes");
-  const [amount, setAmount] = useState("");
+  // Fixed credit tiers matching contract constants (microcredits)
+  const TIERS = [
+    { label: "0.001", microcredits: 1000 },
+    { label: "0.005", microcredits: 5000 },
+    { label: "0.01", microcredits: 10000 },
+    { label: "0.05", microcredits: 50000 },
+    { label: "0.1", microcredits: 100000 },
+  ] as const;
+  const [selectedTier, setSelectedTier] = useState(2); // default 0.01
+  const amount = TIERS[selectedTier].label;
   const [balance, setBalance] = useState<bigint | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
@@ -69,16 +78,14 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
 
   if (!isOpen) return null;
 
-  const amountMicrocredits = amount ? Math.floor(parseFloat(amount) * 1_000_000) : 0;
-  const insufficientBalance = balance !== null && amountMicrocredits > 0 && BigInt(amountMicrocredits) > balance;
+  const amountMicrocredits = TIERS[selectedTier].microcredits;
+  const insufficientBalance = balance !== null && BigInt(amountMicrocredits) > balance;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!address || !executeTransaction) return;
 
-    if (amountMicrocredits < 1000) {
-      return;
-    }
+    // Tier is always valid — enforced by selector
 
     // Generate random nonce for Pedersen commitment privacy (hoisted for blinding tracking)
     const nonce = BigInt(Math.floor(Math.random() * 2 ** 64)) * BigInt(Math.floor(Math.random() * 2 ** 64));
@@ -119,7 +126,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
   };
 
   const isExecuting = state !== "idle" && state !== "confirmed" && state !== "failed";
-  const canSubmit = !isExecuting && amount && parseFloat(amount) >= 0.001 && !insufficientBalance && !market.paused;
+  const canSubmit = !isExecuting && !insufficientBalance && !market.paused;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -186,22 +193,28 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
             </button>
           </div>
 
-          {/* Amount input */}
+          {/* Amount tier selector */}
           <div className="mb-4">
             <label className="block text-sm text-gray-400 mb-2">
               Amount (Credits)
             </label>
-            <input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.01"
-              step="0.001"
-              min="0.001"
-              disabled={isExecuting}
-              className="w-full p-3 bg-navy-900 border border-navy-600 rounded-xl text-white placeholder-gray-500 focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none disabled:opacity-50"
-              required
-            />
+            <div className="grid grid-cols-5 gap-2">
+              {TIERS.map((tier, i) => (
+                <button
+                  key={tier.microcredits}
+                  type="button"
+                  onClick={() => setSelectedTier(i)}
+                  disabled={isExecuting}
+                  className={`py-2.5 px-1 rounded-xl border-2 text-sm font-mono font-bold transition-colors ${
+                    selectedTier === i
+                      ? "border-accent bg-accent/10 text-accent-light"
+                      : "border-navy-600 text-gray-400 hover:border-navy-500"
+                  } disabled:opacity-50`}
+                >
+                  {tier.label}
+                </button>
+              ))}
+            </div>
             <div className="mt-2 flex justify-between items-center text-sm">
               <span className="text-gray-500">
                 {balanceLoading
@@ -210,16 +223,6 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
                     ? `Available: ${formatCredits(balance)} credits`
                     : "Connect wallet to see balance"}
               </span>
-              {balance !== null && balance > 0n && (
-                <button
-                  type="button"
-                  onClick={() => setAmount((Number(balance) / 1_000_000).toString())}
-                  className="text-accent-light hover:text-accent text-xs transition-colors"
-                  disabled={isExecuting}
-                >
-                  Max
-                </button>
-              )}
             </div>
             {insufficientBalance && (
               <p className="mt-1 text-sm text-rose-400">
