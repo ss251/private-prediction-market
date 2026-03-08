@@ -4,7 +4,7 @@ import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import { getPublicBalance, formatCredits, PROGRAM_ID } from "../lib/aleo";
 import { useBetRecords } from "../hooks/useBetRecords";
-import { upsertUserPosition, incrementPoolTotal } from "../lib/supabase";
+import { incrementPoolTotal } from "../lib/supabase";
 
 interface Market {
   id: string;
@@ -102,12 +102,11 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
     );
 
     if (resultTxId && address) {
-      // Report position + update pool aggregates in Supabase, then refetch
-      // Await both so the UI has fresh data when onBetPlaced triggers refetch
-      await Promise.all([
-        upsertUserPosition(address, market.id, outcome === "yes", amountMicroUSDC).catch((e) => console.error("upsert position failed:", e)),
-        incrementPoolTotal(market.id, outcome === "yes", amountMicroUSDC).catch((e) => console.error("increment pool failed:", e)),
-      ]);
+      // Update pool aggregates in Supabase (pools aren't on-chain during betting).
+      // User positions are tracked by the indexer only — no frontend write to avoid double-counting.
+      await incrementPoolTotal(market.id, outcome === "yes", amountMicroUSDC).catch((e) =>
+        console.error("increment pool failed:", e)
+      );
       if (onBetPlaced) onBetPlaced();
     }
   };
