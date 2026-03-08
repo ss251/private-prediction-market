@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 
 // Transaction state machine states
 export type TransactionState =
@@ -42,8 +42,17 @@ export function useTransaction(): UseTransactionResult {
   const [error, setError] = useState<string | null>(null);
   const [txId, setTxId] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const autoResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearAutoReset = () => {
+    if (autoResetTimerRef.current !== null) {
+      clearTimeout(autoResetTimerRef.current);
+      autoResetTimerRef.current = null;
+    }
+  };
 
   const reset = useCallback(() => {
+    clearAutoReset();
     setState("idle");
     setError(null);
     setTxId(null);
@@ -56,6 +65,7 @@ export function useTransaction(): UseTransactionResult {
       opts?: TransactionOptions
     ): Promise<string | null> => {
       const { statusFn } = opts ?? {};
+      clearAutoReset();
       setError(null);
       setTxId(null);
       setElapsed(0);
@@ -124,8 +134,10 @@ export function useTransaction(): UseTransactionResult {
         clearInterval(intervalId);
 
         // Reset to idle after showing success
-        setTimeout(() => {
+        clearAutoReset();
+        autoResetTimerRef.current = setTimeout(() => {
           setState("idle");
+          autoResetTimerRef.current = null;
         }, 5000);
 
         return transactionId;
@@ -136,8 +148,10 @@ export function useTransaction(): UseTransactionResult {
         clearInterval(intervalId);
 
         // Allow retry after brief delay
-        setTimeout(() => {
+        clearAutoReset();
+        autoResetTimerRef.current = setTimeout(() => {
           setState("idle");
+          autoResetTimerRef.current = null;
         }, 2000);
 
         return null;
