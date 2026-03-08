@@ -1,7 +1,7 @@
 // Market history modal: overview, user position, privacy notice
 
 import { useMarketHistory } from "../hooks/useMarketHistory";
-import { formatCredits, MarketStatus, type MarketData } from "../lib/aleo";
+import { formatUSDC, MarketStatus, type MarketData } from "../lib/aleo";
 
 interface MarketHistoryProps {
   marketId: string;
@@ -155,7 +155,7 @@ export function MarketHistory({
                     <div className="text-xs text-gray-500 mb-1">YES Bet</div>
                     <div className="text-emerald-400 font-mono text-lg">
                       {userPosition.yesAmount > 0n
-                        ? formatCredits(userPosition.yesAmount)
+                        ? formatUSDC(userPosition.yesAmount)
                         : "-"}
                     </div>
                   </div>
@@ -163,7 +163,7 @@ export function MarketHistory({
                     <div className="text-xs text-gray-500 mb-1">NO Bet</div>
                     <div className="text-rose-400 font-mono text-lg">
                       {userPosition.noAmount > 0n
-                        ? formatCredits(userPosition.noAmount)
+                        ? formatUSDC(userPosition.noAmount)
                         : "-"}
                     </div>
                   </div>

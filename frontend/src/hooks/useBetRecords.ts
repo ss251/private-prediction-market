@@ -29,7 +29,7 @@ function parseRawRecord(raw: Record<string, unknown>): BetRecord | null {
 
     const marketId = String(data.market_id);
     const outcome = String(data.outcome) === "true";
-    const amountStr = String(data.amount).replace(/u64$/, "");
+    const amountStr = String(data.amount).replace(/u128$/, "").replace(/u64$/, "");
     const amount = BigInt(amountStr);
 
     return {

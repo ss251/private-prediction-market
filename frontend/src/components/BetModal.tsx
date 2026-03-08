@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
-import { getPublicBalance, formatCredits, PROGRAM_ID } from "../lib/aleo";
+import { getUsdcxBalance, getPublicBalance, formatUSDC, formatCredits, PROGRAM_ID } from "../lib/aleo";
 import { useBetRecords } from "../hooks/useBetRecords";
 import { incrementPoolTotal, accumulateBlindings } from "../lib/supabase";
 
@@ -22,13 +22,13 @@ interface BetModalProps {
   initialOutcome?: "yes" | "no";
 }
 
-// Fixed credit tiers matching contract constants (microcredits)
+// Fixed USDC tiers matching contract constants (6 decimals)
 const TIERS = [
-  { label: "0.001", microcredits: 1000 },
-  { label: "0.005", microcredits: 5000 },
-  { label: "0.01", microcredits: 10000 },
-  { label: "0.05", microcredits: 50000 },
-  { label: "0.1", microcredits: 100000 },
+  { label: "$1", microcredits: 1_000_000 },
+  { label: "$5", microcredits: 5_000_000 },
+  { label: "$10", microcredits: 10_000_000 },
+  { label: "$50", microcredits: 50_000_000 },
+  { label: "$100", microcredits: 100_000_000 },
 ] as const;
 
 /**
@@ -39,9 +39,10 @@ const TIERS = [
 export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome }: BetModalProps) {
   const { address, executeTransaction, transactionStatus } = useWallet();
   const [outcome, setOutcome] = useState<"yes" | "no">(initialOutcome ?? "yes");
-  const [selectedTier, setSelectedTier] = useState(2); // default 0.01
+  const [selectedTier, setSelectedTier] = useState(2); // default $10
   const amount = TIERS[selectedTier].label;
   const [balance, setBalance] = useState<bigint | null>(null);
+  const [creditsBalance, setCreditsBalance] = useState<bigint | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const { state, error, txId, elapsed, execute, reset } = useTransaction();
   const { fetchBetRecords } = useBetRecords();
@@ -51,13 +52,14 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
   useEffect(() => {
     if (!isOpen || !address) {
       setBalance(null);
+      setCreditsBalance(null);
       return;
     }
     setBalanceLoading(true);
-    getPublicBalance(address)
-      .then(setBalance)
-      .catch(() => setBalance(null))
-      .finally(() => setBalanceLoading(false));
+    Promise.all([
+      getUsdcxBalance(address).then(setBalance).catch(() => setBalance(null)),
+      getPublicBalance(address).then(setCreditsBalance).catch(() => setCreditsBalance(null)),
+    ]).finally(() => setBalanceLoading(false));
   }, [isOpen, address]);
 
   useEffect(() => {
@@ -95,8 +97,8 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
       async () => {
         const functionName = existingRecord ? "add_to_bet" : "place_bet";
         const inputs = existingRecord
-          ? [existingRecord, `${amountMicrocredits}u64`, `${nonce}u128`]
-          : [market.id, outcome === "yes" ? "true" : "false", `${amountMicrocredits}u64`, `${nonce}u128`];
+          ? [existingRecord, `${amountMicrocredits}u128`, `${nonce}u128`]
+          : [market.id, outcome === "yes" ? "true" : "false", `${amountMicrocredits}u128`, `${nonce}u128`];
 
         const result = await executeTransaction({
           program: PROGRAM_ID,
@@ -197,7 +199,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
           {/* Amount tier selector */}
           <div className="mb-4">
             <label className="block text-sm text-gray-400 mb-2">
-              Amount (Credits)
+              Amount (USDC)
             </label>
             <div className="grid grid-cols-5 gap-2">
               {TIERS.map((tier, i) => (
@@ -221,9 +223,14 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
                 {balanceLoading
                   ? "Loading balance..."
                   : balance !== null
-                    ? `Available: ${formatCredits(balance)} credits`
+                    ? `Available: ${formatUSDC(balance)}`
                     : "Connect wallet to see balance"}
               </span>
+              {creditsBalance !== null && (
+                <span className="text-gray-600 text-xs">
+                  Gas: {(Number(creditsBalance) / 1_000_000).toFixed(2)} credits
+                </span>
+              )}
             </div>
             {insufficientBalance && (
               <p className="mt-1 text-sm text-rose-400">
@@ -237,7 +244,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">Your Bet:</span>
               <span className="text-white font-mono">
-                {amount ? parseFloat(amount).toFixed(4) : "0.00"} credits
+                {amount} USDC
               </span>
             </div>
             <div className="flex justify-between text-sm mt-1">

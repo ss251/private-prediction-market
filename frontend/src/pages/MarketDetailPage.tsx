@@ -9,7 +9,7 @@ import { ClaimModal } from "../components/ClaimModal";
 import { RefundModal } from "../components/RefundModal";
 import { ResolveModal } from "../components/OracleResolveModal";
 import {
-  formatCredits,
+  formatUSDC,
   formatPool,
   MarketStatus,
   getMarketData,
@@ -233,7 +233,7 @@ export function MarketDetailPage() {
               <>
                 <div className="flex items-baseline justify-between mb-3 sm:mb-4">
                   <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider">Probability</h2>
-                  <span className="text-[11px] sm:text-xs text-gray-600 font-mono">{totalPoolFormatted} credits in pool</span>
+                  <span className="text-[11px] sm:text-xs text-gray-600 font-mono">{totalPoolFormatted} in pool</span>
                 </div>
 
                 {/* Large probability display — only for non-open markets */}
@@ -255,8 +255,8 @@ export function MarketDetailPage() {
                 </div>
 
                 <div className="flex justify-between text-xs text-gray-500 font-mono">
-                  <span>YES: {formatPool(BigInt(market.yesPool))} credits</span>
-                  <span>NO: {formatPool(BigInt(market.noPool))} credits</span>
+                  <span>YES: {formatPool(BigInt(market.yesPool))}</span>
+                  <span>NO: {formatPool(BigInt(market.noPool))}</span>
                 </div>
               </>
             )}
@@ -305,7 +305,7 @@ export function MarketDetailPage() {
                     Hidden
                   </span>
                 ) : (
-                  <span className="text-white font-mono">{formatCredits(BigInt(totalPool))} credits</span>
+                  <span className="text-white font-mono">{formatUSDC(BigInt(totalPool))}</span>
                 )}
               </div>
               {market.endTime && (
@@ -475,13 +475,13 @@ export function MarketDetailPage() {
                     <div className="text-center py-3 rounded-md bg-navy-900 border-2 border-navy-600">
                       <div className="text-xs text-gray-500 mb-1">YES</div>
                       <div className="text-emerald-400 font-mono text-lg font-bold">
-                        {userPosition.yesAmount > 0n ? formatCredits(userPosition.yesAmount) : "-"}
+                        {userPosition.yesAmount > 0n ? formatUSDC(userPosition.yesAmount) : "-"}
                       </div>
                     </div>
                     <div className="text-center py-3 rounded-md bg-navy-900 border-2 border-navy-600">
                       <div className="text-xs text-gray-500 mb-1">NO</div>
                       <div className="text-rose-400 font-mono text-lg font-bold">
-                        {userPosition.noAmount > 0n ? formatCredits(userPosition.noAmount) : "-"}
+                        {userPosition.noAmount > 0n ? formatUSDC(userPosition.noAmount) : "-"}
                       </div>
                     </div>
                   </div>

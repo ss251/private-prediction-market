@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
-import { PROGRAM_ID, formatCredits } from "../lib/aleo";
+import { PROGRAM_ID, formatUSDC } from "../lib/aleo";
 import { fetchBlindings } from "../lib/supabase";
 
 interface ResolveModalProps {
@@ -103,19 +103,19 @@ export function ResolveModal({
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Total Pool:</span>
             <span className="text-white font-mono">
-              {formatCredits(totalPool)} credits
+              {formatUSDC(totalPool)}
             </span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">YES Pool:</span>
             <span className="text-emerald-400 font-mono">
-              {formatCredits(yesPool)}
+              {formatUSDC(yesPool)}
             </span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">NO Pool:</span>
             <span className="text-rose-400 font-mono">
-              {formatCredits(noPool)}
+              {formatUSDC(noPool)}
             </span>
           </div>
         </div>
