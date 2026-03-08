@@ -116,41 +116,6 @@ export async function fetchUserPositions(
 }
 
 /**
- * Upsert a user position in Supabase after a bet is placed.
- * Adds the bet amount to the existing position (or creates a new row).
- */
-export async function upsertUserPosition(
-  walletAddress: string,
-  marketId: string,
-  outcome: boolean,
-  amount: number,
-): Promise<void> {
-  if (!supabase) return;
-  // First try to get existing
-  const { data: existing } = await supabase
-    .from("user_positions")
-    .select("yes_amount, no_amount")
-    .eq("wallet_address", walletAddress)
-    .eq("market_id", marketId)
-    .single();
-
-  const currentYes = Number(existing?.yes_amount ?? 0);
-  const currentNo = Number(existing?.no_amount ?? 0);
-
-  const { error } = await supabase.from("user_positions").upsert(
-    {
-      wallet_address: walletAddress,
-      market_id: marketId,
-      yes_amount: outcome ? currentYes + amount : currentYes,
-      no_amount: outcome ? currentNo : currentNo + amount,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "wallet_address,market_id" },
-  );
-  if (error) console.error("Failed to upsert user position:", error);
-}
-
-/**
  * Replace (not add) a user position in Supabase with absolute amounts.
  * Used by syncFromChain to seed positions from wallet records.
  */
