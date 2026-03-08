@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
-import { calculatePayout, formatCredits, PROGRAM_ID } from "../lib/aleo";
+import { calculatePayout, formatUSDC, PROGRAM_ID } from "../lib/aleo";
 import { useBetRecords } from "../hooks/useBetRecords";
 import type { OnChainPosition } from "../hooks/useUserPositions";
 
@@ -141,7 +141,7 @@ export function ClaimModal({
                 <span className={winningOutcome ? "text-emerald-400" : "text-rose-400"}>
                   YES - {winningOutcome ? "Winner" : "Lost"}
                 </span>
-                <span className="text-gray-300">{formatCredits(yesAmount)} credits</span>
+                <span className="text-gray-300">{formatUSDC(yesAmount)}</span>
               </div>
             </div>
           )}
@@ -157,7 +157,7 @@ export function ClaimModal({
                 <span className={!winningOutcome ? "text-emerald-400" : "text-rose-400"}>
                   NO - {!winningOutcome ? "Winner" : "Lost"}
                 </span>
-                <span className="text-gray-300">{formatCredits(noAmount)} credits</span>
+                <span className="text-gray-300">{formatUSDC(noAmount)}</span>
               </div>
             </div>
           )}
@@ -174,7 +174,7 @@ export function ClaimModal({
             <div className="flex justify-between">
               <span className="text-gray-400 font-medium">Total Payout:</span>
               <span className="text-emerald-400 font-bold font-mono">
-                {formatCredits(totalPayout)} credits
+                {formatUSDC(totalPayout)}
               </span>
             </div>
           </div>
@@ -221,7 +221,7 @@ export function ClaimModal({
           >
             {recordsLoading
               ? "Fetching records..."
-              : `Claim ${formatCredits(totalPayout)} Credits`}
+              : `Claim ${formatUSDC(totalPayout)}`}
           </button>
         )}
 

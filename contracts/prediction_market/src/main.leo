@@ -3,10 +3,10 @@
 // Bet positions are fully private — pool totals only published at resolution
 // No individual bet direction or amount appears in finalize args
 
-import credits.aleo;
+import test_usdcx_stablecoin.aleo;
 import official_oracle_v2.aleo;
 
-program prediction_market_test007.aleo {
+program prediction_market_usdcx_v1.aleo {
     // ========================================
     // HELPER FUNCTIONS (Truly Homomorphic Commitments)
     // ========================================
@@ -35,17 +35,17 @@ program prediction_market_test007.aleo {
     const STATUS_DISPUTED: u8 = 4u8;
 
     // Limits
-    const MIN_BET: u64 = 1000u64; // 0.001 credits minimum
+    const MIN_BET: u128 = 1_000_000u128; // $1 USDC minimum (6 decimals)
 
     // Fee in basis points (2% = 200 bps)
-    const FEE_BPS: u64 = 200u64;
+    const FEE_BPS: u128 = 200u128;
 
     // Fixed denomination betting tiers (Concern 3: hide exact bet sizes)
-    const TIER_1: u64 = 1000u64;
-    const TIER_2: u64 = 5000u64;
-    const TIER_3: u64 = 10000u64;
-    const TIER_4: u64 = 50000u64;
-    const TIER_5: u64 = 100000u64;
+    const TIER_1: u128 = 1_000_000u128;    // $1
+    const TIER_2: u128 = 5_000_000u128;    // $5
+    const TIER_3: u128 = 10_000_000u128;   // $10
+    const TIER_4: u128 = 50_000_000u128;   // $50
+    const TIER_5: u128 = 100_000_000u128;  // $100
 
     // Dispute window: ~1000 blocks after resolution
     const DISPUTE_BLOCKS: u32 = 1000u32;
@@ -69,7 +69,7 @@ program prediction_market_test007.aleo {
         owner: address,
         market_id: field,
         outcome: bool,      // true = YES, false = NO — PRIVATE, never appears in finalize
-        amount: u64,        // PRIVATE, never appears in finalize
+        amount: u128,       // PRIVATE, never appears in finalize
         nonce_value: u128,  // Random nonce for commitment hiding (2^128 search space)
     }
 
@@ -81,8 +81,8 @@ program prediction_market_test007.aleo {
     mapping market_status: field => u8;
 
     // Pool totals per market — ONLY SET AT RESOLUTION, not during betting
-    mapping yes_pool: field => u64;
-    mapping no_pool: field => u64;
+    mapping yes_pool: field => u128;
+    mapping no_pool: field => u128;
 
     // Resolved outcome (true=YES won, false=NO won)
     mapping market_outcome: field => bool;
@@ -91,7 +91,7 @@ program prediction_market_test007.aleo {
     mapping admin: bool => address;
 
     // Collected fees per market (for admin withdrawal)
-    mapping collected_fees: field => u64;
+    mapping collected_fees: field => u128;
 
     // Whether fees have been withdrawn for a market
     mapping fees_withdrawn: field => bool;
@@ -115,7 +115,7 @@ program prediction_market_test007.aleo {
     mapping operator: bool => address;
 
     // Running fee estimate per market (for frontend display, updated at resolution)
-    mapping estimated_fees: field => u64;
+    mapping estimated_fees: field => u128;
 
     // Market registry: total number of markets created (singleton: true => count)
     mapping market_count: bool => u64;
@@ -234,8 +234,8 @@ program prediction_market_test007.aleo {
     async transition resolve_market(
         public market_id: field,
         public outcome: bool,
-        public total_yes: u64,
-        public total_no: u64,
+        public total_yes: u128,
+        public total_no: u128,
         public sum_blinding_yes: scalar,
         public sum_blinding_no: scalar
     ) -> Future {
@@ -245,8 +245,8 @@ program prediction_market_test007.aleo {
     async function finalize_resolve_market(
         market_id: field,
         outcome: bool,
-        total_yes: u64,
-        total_no: u64,
+        total_yes: u128,
+        total_no: u128,
         sum_blinding_yes: scalar,
         sum_blinding_no: scalar,
         caller: address
@@ -274,8 +274,8 @@ program prediction_market_test007.aleo {
         Mapping::set(no_pool, market_id, total_no);
 
         // Calculate and store fees
-        let total_pool: u64 = total_yes + total_no;
-        let fee_amount: u64 = (total_pool * FEE_BPS) / 10000u64;
+        let total_pool: u128 = total_yes + total_no;
+        let fee_amount: u128 = (total_pool * FEE_BPS) / 10000u128;
         Mapping::set(collected_fees, market_id, fee_amount);
         Mapping::set(estimated_fees, market_id, fee_amount);
 
@@ -314,8 +314,8 @@ program prediction_market_test007.aleo {
     // Resolve market using oracle attested data + off-chain pool totals
     async transition resolve_with_oracle(
         public market_id: field,
-        public total_yes: u64,
-        public total_no: u64,
+        public total_yes: u128,
+        public total_no: u128,
         public sum_blinding_yes: scalar,
         public sum_blinding_no: scalar
     ) -> Future {
@@ -324,8 +324,8 @@ program prediction_market_test007.aleo {
 
     async function finalize_resolve_with_oracle(
         market_id: field,
-        total_yes: u64,
-        total_no: u64,
+        total_yes: u128,
+        total_no: u128,
         sum_blinding_yes: scalar,
         sum_blinding_no: scalar
     ) {
@@ -360,8 +360,8 @@ program prediction_market_test007.aleo {
         Mapping::set(yes_pool, market_id, total_yes);
         Mapping::set(no_pool, market_id, total_no);
 
-        let total_pool: u64 = total_yes + total_no;
-        let fee_amount: u64 = (total_pool * FEE_BPS) / 10000u64;
+        let total_pool: u128 = total_yes + total_no;
+        let fee_amount: u128 = (total_pool * FEE_BPS) / 10000u128;
         Mapping::set(collected_fees, market_id, fee_amount);
         Mapping::set(estimated_fees, market_id, fee_amount);
 
@@ -388,15 +388,15 @@ program prediction_market_test007.aleo {
     }
 
     // Withdraw collected fees (admin only)
-    async transition withdraw_fees(public market_id: field, public claimed_fee_amount: u64) -> Future {
-        let transfer_future: Future = credits.aleo/transfer_public(self.caller, claimed_fee_amount);
+    async transition withdraw_fees(public market_id: field, public claimed_fee_amount: u128) -> Future {
+        let transfer_future: Future = test_usdcx_stablecoin.aleo/transfer_public(self.caller, claimed_fee_amount);
         return finalize_withdraw_fees(market_id, self.caller, claimed_fee_amount, transfer_future);
     }
 
     async function finalize_withdraw_fees(
         market_id: field,
         caller: address,
-        claimed_fee_amount: u64,
+        claimed_fee_amount: u128,
         transfer: Future
     ) {
         let admin_addr: address = Mapping::get(admin, true);
@@ -408,7 +408,7 @@ program prediction_market_test007.aleo {
         let already_withdrawn: bool = Mapping::get_or_use(fees_withdrawn, market_id, false);
         assert(!already_withdrawn);
 
-        let fee_amount: u64 = Mapping::get(collected_fees, market_id);
+        let fee_amount: u128 = Mapping::get(collected_fees, market_id);
         assert_eq(claimed_fee_amount, fee_amount);
 
         // Ensure dispute window has ended before withdrawing fees
@@ -477,7 +477,7 @@ program prediction_market_test007.aleo {
         let bet_hash: field = BHP256::hash_to_field(bet);
 
         // Verify bet is valid (non-zero amount)
-        assert(bet.amount > 0u64);
+        assert(bet.amount > 0u128);
 
         return finalize_submit_bet_proof(bet.market_id, bet_hash);
     }
@@ -514,8 +514,8 @@ program prediction_market_test007.aleo {
     async transition resolve_disputed(
         public market_id: field,
         public outcome: bool,
-        public total_yes: u64,
-        public total_no: u64,
+        public total_yes: u128,
+        public total_no: u128,
         public sum_blinding_yes: scalar,
         public sum_blinding_no: scalar
     ) -> Future {
@@ -525,8 +525,8 @@ program prediction_market_test007.aleo {
     async function finalize_resolve_disputed(
         market_id: field,
         outcome: bool,
-        total_yes: u64,
-        total_no: u64,
+        total_yes: u128,
+        total_no: u128,
         sum_blinding_yes: scalar,
         sum_blinding_no: scalar,
         caller: address
@@ -553,8 +553,8 @@ program prediction_market_test007.aleo {
         Mapping::set(market_status, market_id, STATUS_RESOLVED);
 
         // Recalculate fees
-        let total_pool: u64 = total_yes + total_no;
-        let fee_amount: u64 = (total_pool * FEE_BPS) / 10000u64;
+        let total_pool: u128 = total_yes + total_no;
+        let fee_amount: u128 = (total_pool * FEE_BPS) / 10000u128;
         Mapping::set(collected_fees, market_id, fee_amount);
         Mapping::set(estimated_fees, market_id, fee_amount);
 
@@ -576,7 +576,7 @@ program prediction_market_test007.aleo {
     async transition place_bet(
         public market_id: field,
         private outcome: bool,
-        public amount: u64,
+        public amount: u128,
         private nonce_value: u128
     ) -> (Bet, Future) {
         assert(amount >= MIN_BET);
@@ -585,9 +585,9 @@ program prediction_market_test007.aleo {
         let valid_tier: bool = (amount == TIER_1) || (amount == TIER_2) || (amount == TIER_3) || (amount == TIER_4) || (amount == TIER_5);
         assert(valid_tier);
 
-        // Transfer credits from bettor to program (public transfer)
-        let transfer_future: Future = credits.aleo/transfer_public_as_signer(
-            prediction_market_test007.aleo,
+        // Transfer USDCx from bettor to program (public transfer)
+        let transfer_future: Future = test_usdcx_stablecoin.aleo/transfer_public_as_signer(
+            prediction_market_usdcx_v1.aleo,
             amount
         );
 
@@ -605,8 +605,8 @@ program prediction_market_test007.aleo {
         let blinding_no: scalar = (nonce_value + 1u128) as scalar;
 
         // Conditional amounts (ZK-hidden — observer can't tell which is real)
-        let yes_amount: u64 = outcome ? amount : 0u64;
-        let no_amount: u64 = outcome ? 0u64 : amount;
+        let yes_amount: u128 = outcome ? amount : 0u128;
+        let no_amount: u128 = outcome ? 0u128 : amount;
 
         // Pedersen commitments — BOTH are always non-zero group elements
         let yes_contrib: group = (yes_amount as scalar) * get_g() + blinding_yes * get_h();
@@ -650,15 +650,15 @@ program prediction_market_test007.aleo {
 
     // Add additional amount to an existing bet (consolidates into single record)
     // Amount must be a fixed tier (Concern 3)
-    async transition add_to_bet(existing_bet: Bet, public additional_amount: u64, private nonce_value: u128) -> (Bet, Future) {
+    async transition add_to_bet(existing_bet: Bet, public additional_amount: u128, private nonce_value: u128) -> (Bet, Future) {
         assert(additional_amount >= MIN_BET);
 
         // Concern 3: Enforce fixed denomination tiers for additional amount
         let valid_tier: bool = (additional_amount == TIER_1) || (additional_amount == TIER_2) || (additional_amount == TIER_3) || (additional_amount == TIER_4) || (additional_amount == TIER_5);
         assert(valid_tier);
 
-        let transfer_future: Future = credits.aleo/transfer_public_as_signer(
-            prediction_market_test007.aleo,
+        let transfer_future: Future = test_usdcx_stablecoin.aleo/transfer_public_as_signer(
+            prediction_market_usdcx_v1.aleo,
             additional_amount
         );
 
@@ -675,8 +675,8 @@ program prediction_market_test007.aleo {
         let blinding_no: scalar = (nonce_value + 1u128) as scalar;
 
         // Conditional amounts — only the additional amount is committed
-        let yes_amount: u64 = existing_bet.outcome ? additional_amount : 0u64;
-        let no_amount: u64 = existing_bet.outcome ? 0u64 : additional_amount;
+        let yes_amount: u128 = existing_bet.outcome ? additional_amount : 0u128;
+        let no_amount: u128 = existing_bet.outcome ? 0u128 : additional_amount;
 
         // Pedersen commitments
         let yes_contrib: group = (yes_amount as scalar) * get_g() + blinding_yes * get_h();
@@ -721,23 +721,22 @@ program prediction_market_test007.aleo {
     async transition claim_winnings(
         bet: Bet,
         public winning_outcome: bool,
-        public total_yes: u64,
-        public total_no: u64
+        public total_yes: u128,
+        public total_no: u128
     ) -> Future {
         // ZK proof: assert bet is on the winning side (private bet.outcome == public winning_outcome)
         // Losers cannot pass this assertion — they simply don't call claim_winnings
         assert(bet.outcome == winning_outcome);
 
         // Compute payout entirely in transition (private access to bet.amount)
-        let total_pool_u128: u128 = (total_yes as u128) + (total_no as u128);
-        let fee_amount_u128: u128 = (total_pool_u128 * (FEE_BPS as u128)) / 10000u128;
-        let net_pool_u128: u128 = total_pool_u128 - fee_amount_u128;
-        let winning_pool: u64 = winning_outcome ? total_yes : total_no;
-        let payout_u128: u128 = ((bet.amount as u128) * net_pool_u128) / (winning_pool as u128);
-        let payout: u64 = payout_u128 as u64;
+        let total_pool: u128 = total_yes + total_no;
+        let fee_amount: u128 = (total_pool * FEE_BPS) / 10000u128;
+        let net_pool: u128 = total_pool - fee_amount;
+        let winning_pool: u128 = winning_outcome ? total_yes : total_no;
+        let payout: u128 = (bet.amount * net_pool) / winning_pool;
 
         // Transfer payout to bet owner
-        let transfer_future: Future = credits.aleo/transfer_public(bet.owner, payout);
+        let transfer_future: Future = test_usdcx_stablecoin.aleo/transfer_public(bet.owner, payout);
 
         // Finalize only verifies public args match on-chain state
         // It never sees bet.outcome or bet.amount
@@ -753,8 +752,8 @@ program prediction_market_test007.aleo {
     async function finalize_claim_winnings(
         market_id: field,
         winning_outcome: bool,
-        total_yes: u64,
-        total_no: u64,
+        total_yes: u128,
+        total_no: u128,
         transfer: Future
     ) {
         // Verify market is resolved
@@ -769,10 +768,10 @@ program prediction_market_test007.aleo {
         let actual_outcome: bool = Mapping::get(market_outcome, market_id);
         assert_eq(winning_outcome, actual_outcome);
 
-        let actual_yes: u64 = Mapping::get(yes_pool, market_id);
+        let actual_yes: u128 = Mapping::get(yes_pool, market_id);
         assert_eq(total_yes, actual_yes);
 
-        let actual_no: u64 = Mapping::get(no_pool, market_id);
+        let actual_no: u128 = Mapping::get(no_pool, market_id);
         assert_eq(total_no, actual_no);
 
         transfer.await();
@@ -781,7 +780,7 @@ program prediction_market_test007.aleo {
     // Claim refund for cancelled market — consumes bet record, returns full amount
     // No pool data needed, no direction leaked
     async transition claim_refund(bet: Bet) -> Future {
-        let transfer_future: Future = credits.aleo/transfer_public(bet.owner, bet.amount);
+        let transfer_future: Future = test_usdcx_stablecoin.aleo/transfer_public(bet.owner, bet.amount);
 
         return finalize_claim_refund(
             bet.market_id,

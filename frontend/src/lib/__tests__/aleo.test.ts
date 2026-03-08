@@ -14,8 +14,8 @@ import {
 
 describe("aleo utilities", () => {
   describe("PROGRAM_ID", () => {
-    it("is set to test007", () => {
-      expect(PROGRAM_ID).toBe("prediction_market_test007.aleo");
+    it("is set to usdcx_v1", () => {
+      expect(PROGRAM_ID).toBe("prediction_market_usdcx_v1.aleo");
     });
 
     it("has oracle program ID set", () => {
@@ -67,36 +67,39 @@ describe("aleo utilities", () => {
     });
   });
 
-  describe("formatCredits", () => {
-    it("formats microcredits to credits string", () => {
+  describe("formatCredits (formatUSDC)", () => {
+    it("formats micro-USDC to USDC string", () => {
       const result = formatCredits(1_000_000n);
       expect(result).toContain("1");
+      expect(result).toContain("USDC");
     });
 
     it("handles zero", () => {
       const result = formatCredits(0n);
       expect(result).toContain("0");
+      expect(result).toContain("USDC");
     });
 
     it("formats small amounts", () => {
       const result = formatCredits(1000n);
-      expect(result).toContain("0.001");
+      expect(result).toContain("0.00");
+      expect(result).toContain("USDC");
     });
   });
 
   describe("formatPool", () => {
-    it("returns 0 for zero value", () => {
-      expect(formatPool(0n)).toBe("0");
+    it("returns $0 for zero value", () => {
+      expect(formatPool(0n)).toBe("$0");
     });
 
-    it("formats values under 1000 credits", () => {
-      const result = formatPool(5_000_000n); // 5 credits
-      expect(result).toBe("5");
+    it("formats values under $1000", () => {
+      const result = formatPool(5_000_000n); // $5
+      expect(result).toBe("$5");
     });
 
     it("formats large values with k suffix", () => {
-      const result = formatPool(1_500_000_000n); // 1500 credits
-      expect(result).toBe("1.5k");
+      const result = formatPool(1_500_000_000n); // $1500
+      expect(result).toBe("$1.5k");
     });
   });
 

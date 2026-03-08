@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
-import { formatCredits, PROGRAM_ID } from "../lib/aleo";
+import { formatUSDC, PROGRAM_ID } from "../lib/aleo";
 import { useBetRecords } from "../hooks/useBetRecords";
 import type { OnChainPosition } from "../hooks/useUserPositions";
 
@@ -134,7 +134,7 @@ export function RefundModal({
             <div className="p-3 rounded-xl border border-navy-600 bg-navy-900/60">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-300">YES bet</span>
-                <span className="text-gray-300">{formatCredits(yesAmount)} credits</span>
+                <span className="text-gray-300">{formatUSDC(yesAmount)}</span>
               </div>
             </div>
           )}
@@ -142,7 +142,7 @@ export function RefundModal({
             <div className="p-3 rounded-xl border border-navy-600 bg-navy-900/60">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-300">NO bet</span>
-                <span className="text-gray-300">{formatCredits(noAmount)} credits</span>
+                <span className="text-gray-300">{formatUSDC(noAmount)}</span>
               </div>
             </div>
           )}
@@ -159,7 +159,7 @@ export function RefundModal({
             <div className="flex justify-between">
               <span className="text-gray-400 font-medium">Total Refund:</span>
               <span className="text-accent-light font-bold font-mono">
-                {formatCredits(totalRefund)} credits
+                {formatUSDC(totalRefund)}
               </span>
             </div>
             <p className="text-xs text-gray-500 mt-1">
@@ -210,7 +210,7 @@ export function RefundModal({
           >
             {recordsLoading
               ? "Fetching records..."
-              : `Claim Refund (${formatCredits(totalRefund)} credits)`}
+              : `Claim Refund (${formatUSDC(totalRefund)})`}
           </button>
         )}
 

@@ -52,7 +52,7 @@ function parseRecords(rawRecords: unknown[]): OnChainPosition[] {
       let marketId = String(data.market_id).replace(/\.private$/, "").replace(/\.public$/, "");
       if (!marketId.endsWith("field")) marketId = marketId + "field";
       const outcome = String(data.outcome).replace(/\.private$/, "") === "true";
-      const amount = BigInt(String(data.amount).replace(/u64$/, "").replace(/\.private$/, ""));
+      const amount = BigInt(String(data.amount).replace(/u128$/, "").replace(/u64$/, "").replace(/\.private$/, ""));
       const existing = byMarket.get(marketId) ?? { yes: 0n, no: 0n };
       if (outcome) existing.yes += amount;
       else existing.no += amount;

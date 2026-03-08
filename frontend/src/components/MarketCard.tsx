@@ -191,7 +191,7 @@ export function MarketCard({ market, onBet, onClaim, onRefund, onResolve, userPo
           )}
         </div>
         <div className="flex items-center gap-3 text-[11px] text-gray-600">
-          {!isOpen && <span className="font-mono">{totalPoolFormatted} credits</span>}
+          {!isOpen && <span className="font-mono">{totalPoolFormatted} in pool</span>}
           <Link
             to={`/market/${market.id}`}
             className="text-accent-light hover:text-accent transition-colors font-medium"
