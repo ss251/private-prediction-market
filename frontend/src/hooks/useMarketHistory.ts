@@ -67,7 +67,7 @@ export function useMarketHistory(
           if (recordMarketId !== normalizedMarketId) continue;
 
           const outcome = String(data.outcome) === "true";
-          const amount = BigInt(String(data.amount).replace(/u64$/, ""));
+          const amount = BigInt(String(data.amount).replace(/u128$/, "").replace(/u64$/, ""));
 
           if (outcome) {
             yesAmount += amount;

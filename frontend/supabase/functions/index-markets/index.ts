@@ -7,7 +7,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const API_URL = "https://api.explorer.provable.com/v1/testnet";
-const PROGRAM_ID = "prediction_market_test007.aleo";
+const PROGRAM_ID = "prediction_market_usdcx_v1.aleo";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -176,7 +176,7 @@ async function scanBetTransactions(lastHeight: number): Promise<{ events: BetEve
           // Format: { program_id: ..., function_name: place_bet, arguments: [market_id, outcome, amount, {nested_future}] }
           const marketMatch = futureValue.match(/arguments:\s*\[\s*(\d+field)/);
           const outcomeMatch = futureValue.match(/arguments:\s*\[\s*\d+field,\s*(true|false)/);
-          const amountMatch = futureValue.match(/arguments:\s*\[\s*\d+field,\s*(?:true|false),\s*(\d+)u64/);
+          const amountMatch = futureValue.match(/arguments:\s*\[\s*\d+field,\s*(?:true|false),\s*(\d+)u128/);
 
           if (!marketMatch || !outcomeMatch || !amountMatch) continue;
 
