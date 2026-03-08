@@ -441,8 +441,10 @@ The frontend uses Supabase for market metadata and chain state caching. This rep
 
 **Edge Functions**:
 - `index-markets`: Cron (every 60s). Reads on-chain state from the explorer API, upserts into `markets`, captures pool snapshots, updates platform stats.
-- `create-market-metadata`: HTTP POST. Called by the frontend after a successful on-chain `create_market` transaction to store title, description, category, and tags.
 - `cleanup-snapshots`: Cron (daily). Prunes old pool snapshots, keeping hourly samples for data older than 7 days.
+
+**RPC Functions**:
+- `increment_pool_total(p_market_id, p_outcome, p_amount)`: Atomically increments yes/no pool totals. Called by the frontend after a bet confirms.
 
 **Schema management**: Drizzle ORM defines the schema in [`frontend/src/db/schema.ts`](frontend/src/db/schema.ts). Migrations are generated with `bunx drizzle-kit generate` and applied with `bunx drizzle-kit push`.
 
