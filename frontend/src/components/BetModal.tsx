@@ -22,6 +22,15 @@ interface BetModalProps {
   initialOutcome?: "yes" | "no";
 }
 
+// Fixed credit tiers matching contract constants (microcredits)
+const TIERS = [
+  { label: "0.001", microcredits: 1000 },
+  { label: "0.005", microcredits: 5000 },
+  { label: "0.01", microcredits: 10000 },
+  { label: "0.05", microcredits: 50000 },
+  { label: "0.1", microcredits: 100000 },
+] as const;
+
 /**
  * Modal for placing or adding to a bet on a prediction market.
  * Supports both `place_bet` (new position) and `add_to_bet` (existing position).
@@ -30,14 +39,6 @@ interface BetModalProps {
 export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome }: BetModalProps) {
   const { address, executeTransaction, transactionStatus } = useWallet();
   const [outcome, setOutcome] = useState<"yes" | "no">(initialOutcome ?? "yes");
-  // Fixed credit tiers matching contract constants (microcredits)
-  const TIERS = [
-    { label: "0.001", microcredits: 1000 },
-    { label: "0.005", microcredits: 5000 },
-    { label: "0.01", microcredits: 10000 },
-    { label: "0.05", microcredits: 50000 },
-    { label: "0.1", microcredits: 100000 },
-  ] as const;
   const [selectedTier, setSelectedTier] = useState(2); // default 0.01
   const amount = TIERS[selectedTier].label;
   const [balance, setBalance] = useState<bigint | null>(null);
