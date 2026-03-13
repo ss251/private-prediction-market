@@ -1,29 +1,9 @@
 {
   "markets": {
     "1field": {
-      "question": "Will Bitcoin be above $70,000 on February 18?",
-      "endDate": "2026-02-18",
-      "category": "crypto"
-    },
-    "2field": {
-      "question": "Will Anthropic have the #1 AI model on Feb 19?",
-      "endDate": "2026-02-19",
-      "category": "tech"
-    },
-    "3field": {
-      "question": "Russia-Ukraine ceasefire by February 28?",
-      "endDate": "2026-02-28",
-      "category": "politics"
-    },
-    "4field": {
-      "question": "Fed rate cut in March 2026?",
+      "question": "Will BTC reach $100K by end of March 2026?",
       "endDate": "2026-03-31",
-      "category": "other"
-    },
-    "5field": {
-      "question": "Norway wins most gold medals at 2026 Winter Olympics?",
-      "endDate": "2026-02-22",
-      "category": "other"
+      "category": "crypto"
     }
   }
 }
