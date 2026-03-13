@@ -1,6 +1,6 @@
 <p align="center">
     <h1 align="center">🍝 Lasagna</h1>
-    <p align="center">A private prediction market on Aleo with deferred aggregate revelation - bet direction is fully private, pool totals hidden until resolution.</p>
+    <p align="center">A private prediction market on Aleo with USDCx stablecoin and deferred aggregate revelation - bet direction is fully private, pool totals hidden until resolution.</p>
 </p>
 
 <p align="center">
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-    <b>Live Demo:</b> <a href="https://lasagna-markets.vercel.app">lasagna-markets.vercel.app</a> · <b>Contract:</b> <code>prediction_market_test007.aleo</code> · <b>84 tests passing</b>
+    <b>Live Demo:</b> <a href="https://lasagna-markets.vercel.app">lasagna-markets.vercel.app</a> · <b>Contract:</b> <code>prediction_market_usdcx_v1.aleo</code> · <b>84 tests passing</b>
 </p>
 
 ## Table of Contents
@@ -49,11 +49,11 @@
 
 ## 1. Overview
 
-Lasagna is a parimutuel prediction market where users bet on binary (YES/NO) outcomes using Aleo credits. Unlike traditional prediction markets where every trade is public, Lasagna keeps bet directions fully private using Pedersen commitments and hides pool totals until resolution via **Deferred Aggregate Revelation (DAR)**.
+Lasagna is a parimutuel prediction market where users bet on binary (YES/NO) outcomes using Circle's USDCx stablecoin with dollar-denominated tiers ($1, $5, $10, $50, $100). Unlike traditional prediction markets where every trade is public, Lasagna keeps bet directions fully private using Pedersen commitments and hides pool totals until resolution via **Deferred Aggregate Revelation (DAR)**.
 
 Winners split the opposing pool proportionally, minus a 2% fee. Bet records are encrypted Aleo records - an observer can see that *someone* placed a bet in a given tier, but cannot determine which wallet placed it or which direction they chose.
 
-The contract is deployed on Aleo Testnet Beta as `prediction_market_test007.aleo`. It depends on `credits.aleo` for native credit transfers and `official_oracle_v2.aleo` for attested data feeds.
+The contract is deployed on Aleo Testnet as `prediction_market_usdcx_v1.aleo`. It depends on `test_usdcx_stablecoin.aleo` (Circle's USDCx) for dollar-denominated transfers, `official_oracle_v2.aleo` for attested data feeds, and the full USDCx dependency chain (`merkle_tree.aleo`, `test_usdcx_multisig_core.aleo`, `test_usdcx_freezelist.aleo`).
 
 Built for the [Aleo Privacy Buildathon](https://app.akindo.io/wave-hacks/gXdXJvJXxTJKBELvo).
 
@@ -61,9 +61,9 @@ Built for the [Aleo Privacy Buildathon](https://app.akindo.io/wave-hacks/gXdXJvJ
 
 ```
 ┌─────────────────────┐      ┌────────────────────────┐
-│  Frontend (React)   │─────▶│  Aleo Testnet Beta     │
+│  Frontend (React)   │─────▶│  Aleo Testnet           │
 │  Shield Wallet      │      │  prediction_market_     │
-│  Delegated Proving  │      │  test007.aleo           │
+│  Delegated Proving  │      │  usdcx_v1.aleo          │
 └────────┬────────────┘      └──────────┬─────────────┘
          │                              │
          │  metadata                    │  on-chain state
@@ -123,7 +123,7 @@ Where:
 - `G = group::GEN` (Aleo's built-in group generator)
 - `H = Poseidon2::hash_to_group(0field)` (nothing-up-my-sleeve point - deterministic, no trapdoor)
 
-This scheme is truly additively homomorphic: `(a*G + r1*H) + (b*G + r2*H) = (a+b)*G + (r1+r2)*H`. Deployed as `prediction_market_test007.aleo`.
+This scheme is truly additively homomorphic: `(a*G + r1*H) + (b*G + r2*H) = (a+b)*G + (r1+r2)*H`. Deployed as `prediction_market_usdcx_v1.aleo`.
 
 ### 2.3 Parimutuel Mechanics
 
@@ -139,7 +139,7 @@ winning_pool = yes_pool if YES won, else no_pool
 payout       = (bet_amount * net_pool) / winning_pool
 ```
 
-The contract uses `u128` intermediate arithmetic to avoid overflow when multiplying large `u64` values.
+All amounts use `u128` to match the USDCx stablecoin standard (6 decimal places).
 
 **Claim-before-verify pattern**: The user calculates their payout off-chain and provides `claimed_amount` as a public input to `claim_winnings`. The contract independently recomputes the expected payout from on-chain state and asserts equality. If the claim is wrong, the transaction fails and no funds move.
 
@@ -181,12 +181,12 @@ Markets can also be cancelled directly from OPEN state via `cancel_market`.
 
 | Field | Value |
 |-------|-------|
-| Program ID | `prediction_market_test007.aleo` |
+| Program ID | `prediction_market_usdcx_v1.aleo` |
 | Leo version | 3.4.0 |
-| Network | Testnet Beta |
-| Dependencies | `credits.aleo`, `official_oracle_v2.aleo` |
+| Network | Testnet |
+| Dependencies | `test_usdcx_stablecoin.aleo`, `official_oracle_v2.aleo`, `merkle_tree.aleo`, `test_usdcx_multisig_core.aleo`, `test_usdcx_freezelist.aleo` |
 | Lines of code | 801 |
-| Minimum bet | 1,000 microcredits (0.001 credits) |
+| Minimum bet | 1,000,000 USDCx ($1 USDC) |
 | Fee rate | 200 basis points (2%) |
 | Source | [`contracts/prediction_market/src/main.leo`](contracts/prediction_market/src/main.leo) |
 
@@ -199,7 +199,7 @@ record Bet {
     owner: address,         // bettor address (private)
     market_id: field,       // which market (private)
     outcome: bool,          // true = YES, false = NO (private)
-    amount: u64,            // bet size in microcredits (private)
+    amount: u128,           // bet size in USDCx, 6 decimals (private)
     nonce_value: scalar,    // blinding factor for Pedersen commitment (private)
 }
 ```
@@ -213,8 +213,8 @@ A `Bet` record is created by `place_bet` or `add_to_bet`, and consumed (spent) b
 | Mapping | Type | Description |
 |---------|------|-------------|
 | `market_status` | `field => u8` | 0=OPEN, 1=CLOSED, 2=RESOLVED, 3=CANCELLED |
-| `yes_pool` | `field => u64` | Aggregate credits bet on YES (**only set at resolution**) |
-| `no_pool` | `field => u64` | Aggregate credits bet on NO (**only set at resolution**) |
+| `yes_pool` | `field => u128` | Aggregate USDCx bet on YES (**only set at resolution**) |
+| `no_pool` | `field => u128` | Aggregate USDCx bet on NO (**only set at resolution**) |
 | `market_outcome` | `field => bool` | Winning outcome after resolution |
 | `market_end_time` | `field => u32` | Block height deadline for betting |
 | `market_paused` | `field => bool` | Emergency pause flag |
@@ -240,9 +240,9 @@ A `Bet` record is created by `place_bet` or `add_to_bet`, and consumed (spent) b
 
 | Mapping | Type | Description |
 |---------|------|-------------|
-| `collected_fees` | `field => u64` | Finalized fee amount per market |
+| `collected_fees` | `field => u128` | Finalized fee amount per market |
 | `fees_withdrawn` | `field => bool` | Whether fees have been claimed |
-| `estimated_fees` | `field => u64` | Running estimate (updated on each bet) |
+| `estimated_fees` | `field => u128` | Running estimate (updated on each bet) |
 
 **Market registry (enumeration without iteration):**
 
@@ -282,7 +282,7 @@ A `Bet` record is created by `place_bet` or `add_to_bet`, and consumed (spent) b
 | `resolve_market(market_id, outcome, yes_pool, no_pool, yes_blinding, no_blinding)` | Admin | Verify commitments, set pools, resolve market. |
 | `resolve_disputed(market_id, outcome, yes_pool, no_pool, yes_blinding, no_blinding)` | Admin | Resolve after dispute window. |
 | `cancel_market(market_id)` | Admin | Cancel market (OPEN or CLOSED). Enables refunds. |
-| `withdraw_fees(market_id, claimed_fee_amount)` | Admin | Withdraw 2% fee. Transfers credits to admin. |
+| `withdraw_fees(market_id, claimed_fee_amount)` | Admin | Withdraw 2% fee. Transfers USDCx to admin. |
 | `set_operator(operator_address)` | Admin | Delegate close/pause permissions. |
 | `pause_market(market_id)` / `unpause_market(market_id)` | Admin/Operator | Emergency controls. |
 | `set_market_oracle(market_id, threshold, request_hash)` | Admin | Configure oracle parameters before close. |
@@ -310,6 +310,7 @@ This is permissionless - once oracle data is on-chain, any address can trigger r
 - [Bun](https://bun.sh/) v1.0+
 - [Shield Wallet](https://shieldwallet.app/) browser extension
 - Testnet credits from the [Aleo Faucet](https://faucet.aleo.org/)
+- USDCx testnet tokens from [USDCx Mint](https://usdcx.aleo.org/)
 
 ### 4.2 Installation
 
@@ -331,7 +332,7 @@ Edit `.env` with your admin private key and address:
 ```
 VITE_NETWORK=testnet
 VITE_API_ENDPOINT=https://api.explorer.provable.com/v1
-VITE_PROGRAM_ID=prediction_market_test007.aleo
+VITE_PROGRAM_ID=prediction_market_usdcx_v1.aleo
 ADMIN_PRIVATE_KEY=APrivateKey1zkp...
 ADMIN_ADDRESS=aleo1...
 PRIORITY_FEE=1000000
@@ -462,7 +463,7 @@ bun test
 
 Test suites:
 
-- **`contract/transitions.test.ts`**: Validates transition inputs and outputs using `leo run` (no proofs, fast). Tests all 15 transitions including `place_bet`, `claim_winnings`, `resolve_with_oracle`, and input validation (e.g., rejects bets below `MIN_BET` of 1,000 microcredits).
+- **`contract/transitions.test.ts`**: Validates transition inputs and outputs using `leo run` (no proofs, fast). Tests all 15 transitions including `place_bet`, `claim_winnings`, `resolve_with_oracle`, and input validation (e.g., rejects bets below minimum tier of 1,000,000 USDCx / $1).
 
 - **`unit/payout-math.test.ts`**: Verifies the parimutuel payout formula matches the contract's `finalize_claim_winnings` logic exactly. Covers equal pools, skewed pools (99:1), sole winners, losers, minimum bets, integer truncation, and `u128` overflow scenarios.
 
@@ -541,7 +542,7 @@ private-prediction-market/
 | Layer | Technology | Version |
 |-------|-----------|---------|
 | Smart contract | Leo | 3.4.0 |
-| Contract deps | `credits.aleo`, `official_oracle_v2.aleo` | Testnet Beta |
+| Contract deps | `test_usdcx_stablecoin.aleo` (Circle USDCx), `official_oracle_v2.aleo` | Testnet |
 | Frontend | React | 18.3.1 |
 | Build tool | Vite | 7.2.4 |
 | Language | TypeScript | 5.9.3 |
