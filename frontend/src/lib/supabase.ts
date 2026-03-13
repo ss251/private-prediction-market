@@ -170,6 +170,28 @@ export async function incrementPoolTotal(
   if (error) console.error("Failed to increment pool total:", error);
 }
 
+/**
+ * Atomically increment a user's position after a successful bet.
+ * Uses a Postgres RPC to avoid race conditions on concurrent bets.
+ * This is needed because the indexer cannot determine bet direction
+ * from the new contract (Pedersen commitments hide the outcome).
+ */
+export async function incrementUserPosition(
+  walletAddress: string,
+  marketId: string,
+  outcome: boolean,
+  amount: number,
+): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase.rpc("increment_user_position", {
+    p_wallet: walletAddress,
+    p_market: marketId,
+    p_outcome: outcome,
+    p_amount: amount,
+  });
+  if (error) console.error("Failed to increment user position:", error);
+}
+
 // --- Blinding factor tracking (for Pedersen commitment verification at resolution) ---
 
 /**

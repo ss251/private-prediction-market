@@ -4,7 +4,7 @@ import { useTransaction, stateMessages } from "../hooks/useTransaction";
 import { TransactionProgress } from "./TransactionProgress";
 import { getUsdcxBalance, getPublicBalance, formatUSDC, PROGRAM_ID } from "../lib/aleo";
 import { useBetRecords } from "../hooks/useBetRecords";
-import { incrementPoolTotal, accumulateBlindings } from "../lib/supabase";
+import { incrementPoolTotal, accumulateBlindings, incrementUserPosition } from "../lib/supabase";
 
 interface Market {
   id: string;
@@ -113,11 +113,14 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
     );
 
     if (resultTxId && address) {
-      // Update pool aggregates + track blindings in Supabase (pools aren't on-chain during betting).
-      // User positions are tracked by the indexer only — no frontend write to avoid double-counting.
+      // Update pool aggregates, track blindings, and record user position in Supabase.
+      // Position uses atomic increment RPC (not replace) to handle concurrent bets safely.
+      // The indexer cannot determine bet direction from the new contract (Pedersen commitments
+      // hide the outcome), so the frontend must report positions directly.
       await Promise.all([
         incrementPoolTotal(market.id, outcome === "yes", amountMicrocredits).catch((e) => console.error("increment pool failed:", e)),
         accumulateBlindings(market.id, nonce).catch((e) => console.error("accumulate blindings failed:", e)),
+        incrementUserPosition(address, market.id, outcome === "yes", amountMicrocredits).catch((e) => console.error("increment position failed:", e)),
       ]);
       if (onBetPlaced) onBetPlaced();
     }

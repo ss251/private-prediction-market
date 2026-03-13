@@ -378,16 +378,16 @@ Deno.serve(async (_req: Request) => {
       last_indexed_at: new Date().toISOString(),
     });
 
-    // 5. Scan recent blocks for bet transactions → update user_positions
-    const lastBlockHeight = Number(_cursor?.last_block_height ?? 0);
-    const { events: betEvents, newHeight } = await scanBetTransactions(lastBlockHeight);
-    const positionsIndexed = betEvents.length > 0 ? await indexBetEvents(betEvents) : 0;
+    // 5. Bet position tracking is now handled by the frontend (BetModal)
+    // via the increment_user_position RPC. The indexer cannot determine bet
+    // direction from on-chain data because the new contract uses Pedersen
+    // commitments that hide the outcome. The block scanner code is retained
+    // but no longer called.
 
     // 6. Update indexer state
     await supabase.from("indexer_state").upsert({
       id: true,
       last_market_count: marketIds.length,
-      last_block_height: newHeight,
       last_run_at: new Date().toISOString(),
       last_error: null,
     });
