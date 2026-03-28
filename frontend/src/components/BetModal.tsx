@@ -69,14 +69,14 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
 
   if (!isOpen) return null;
 
-  const amountMicrocredits = amount ? Math.floor(parseFloat(amount) * 1_000_000) : 0;
-  const insufficientBalance = balance !== null && amountMicrocredits > 0 && BigInt(amountMicrocredits) > balance;
+  const amountMicroUSDC = amount ? Math.floor(parseFloat(amount) * 1_000_000) : 0;
+  const insufficientBalance = balance !== null && amountMicroUSDC > 0 && BigInt(amountMicroUSDC) > balance;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!address || !executeTransaction) return;
 
-    if (amountMicrocredits < 1000) {
+    if (amountMicroUSDC < 1000000) {
       return;
     }
 
@@ -86,8 +86,8 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
         // Generate random nonce for Pedersen commitment privacy
         const nonce = BigInt(Math.floor(Math.random() * 2 ** 64)) * BigInt(Math.floor(Math.random() * 2 ** 64));
         const inputs = existingRecord
-          ? [existingRecord, `${amountMicrocredits}u64`, `${nonce}u128`]
-          : [market.id, outcome === "yes" ? "true" : "false", `${amountMicrocredits}u64`, `${nonce}u128`];
+          ? [existingRecord, `${amountMicroUSDC}u128`, `${nonce}u128`]
+          : [market.id, outcome === "yes" ? "true" : "false", `${amountMicroUSDC}u128`, `${nonce}u128`];
 
         const result = await executeTransaction({
           program: PROGRAM_ID,
@@ -105,8 +105,8 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
       // Report position + update pool aggregates in Supabase, then refetch
       // Await both so the UI has fresh data when onBetPlaced triggers refetch
       await Promise.all([
-        upsertUserPosition(address, market.id, outcome === "yes", amountMicrocredits).catch((e) => console.error("upsert position failed:", e)),
-        incrementPoolTotal(market.id, outcome === "yes", amountMicrocredits).catch((e) => console.error("increment pool failed:", e)),
+        upsertUserPosition(address, market.id, outcome === "yes", amountMicroUSDC).catch((e) => console.error("upsert position failed:", e)),
+        incrementPoolTotal(market.id, outcome === "yes", amountMicroUSDC).catch((e) => console.error("increment pool failed:", e)),
       ]);
       if (onBetPlaced) onBetPlaced();
     }
@@ -118,7 +118,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
   };
 
   const isExecuting = state !== "idle" && state !== "confirmed" && state !== "failed";
-  const canSubmit = !isExecuting && amount && parseFloat(amount) >= 0.001 && !insufficientBalance && !market.paused;
+  const canSubmit = !isExecuting && amount && parseFloat(amount) >= 1 && !insufficientBalance && !market.paused;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -206,7 +206,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
                 {balanceLoading
                   ? "Loading balance..."
                   : balance !== null
-                    ? `Available: ${formatCredits(balance)} credits`
+                    ? `Available: ${formatCredits(balance)} USDC`
                     : "Connect wallet to see balance"}
               </span>
               {balance !== null && balance > 0n && (
@@ -232,7 +232,7 @@ export function BetModal({ market, isOpen, onClose, onBetPlaced, initialOutcome 
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">Your Bet:</span>
               <span className="text-white font-mono">
-                {amount ? parseFloat(amount).toFixed(4) : "0.00"} credits
+                {amount ? parseFloat(amount).toFixed(4) : "0.00"} USDC
               </span>
             </div>
             <div className="flex justify-between text-sm mt-1">

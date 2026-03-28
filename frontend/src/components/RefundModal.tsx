@@ -113,7 +113,7 @@ export function RefundModal({
             <div className="p-3 rounded-xl border border-navy-600 bg-navy-900/60">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-300">YES bet</span>
-                <span className="text-gray-300">{formatCredits(yesAmount)} credits</span>
+                <span className="text-gray-300">{formatCredits(yesAmount)} USDC</span>
               </div>
             </div>
           )}
@@ -121,7 +121,7 @@ export function RefundModal({
             <div className="p-3 rounded-xl border border-navy-600 bg-navy-900/60">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-300">NO bet</span>
-                <span className="text-gray-300">{formatCredits(noAmount)} credits</span>
+                <span className="text-gray-300">{formatCredits(noAmount)} USDC</span>
               </div>
             </div>
           )}
@@ -138,7 +138,7 @@ export function RefundModal({
             <div className="flex justify-between">
               <span className="text-gray-400 font-medium">Total Refund:</span>
               <span className="text-accent-light font-bold font-mono">
-                {formatCredits(totalRefund)} credits
+                {formatCredits(totalRefund)} USDC
               </span>
             </div>
             <p className="text-xs text-gray-500 mt-1">
@@ -182,7 +182,7 @@ export function RefundModal({
           >
             {recordsLoading
               ? "Fetching records..."
-              : `Claim Refund (${formatCredits(totalRefund)} credits)`}
+              : `Claim Refund (${formatCredits(totalRefund)} USDC)`}
           </button>
         )}
 

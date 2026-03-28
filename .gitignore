@@ -49,3 +49,4 @@ ai/
 research/
 .vercel
 .env*.local
+supabase/.temp/

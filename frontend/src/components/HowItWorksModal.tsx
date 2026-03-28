@@ -33,14 +33,14 @@ const slides = [
     step: "2",
     title: "Bet Privately with ZK",
     description:
-      "Choose from 5 fixed credit tiers. Your bet generates a ZK proof and a Pedersen commitment. Only the bet count increments on-chain — no direction, no amount.",
+      "Choose from 5 fixed USDC tiers. Your bet generates a ZK proof and a Pedersen commitment. Only the bet count increments on-chain — no direction, no amount.",
     privacy:
       "Bet direction is encrypted in your Bet record, never passed as a finalize argument. Pedersen128 commitments aggregate homomorphically so pool totals stay hidden until resolution.",
     icon: (
       <div className="flex flex-col items-center gap-3">
         <div className="glass-card px-6 py-4 flex flex-col items-center gap-1 relative">
           <span className="font-heading text-3xl text-white">Tier 3</span>
-          <span className="text-xs text-gray-500">credits</span>
+          <span className="text-xs text-gray-500">USDC</span>
           <div className="absolute -top-2 -right-2 w-6 h-6 bg-privacy/20 border-2 border-privacy/40 rounded-md flex items-center justify-center">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D4A054" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />

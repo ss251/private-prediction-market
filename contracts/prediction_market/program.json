@@ -1,12 +1,12 @@
 {
-  "program": "prediction_market_test005.aleo",
+  "program": "prediction_market_test006.aleo",
   "version": "0.1.0",
-  "description": "Private prediction market with parimutuel betting",
+  "description": "Private prediction market with parimutuel betting (USDCx)",
   "license": "MIT",
   "leo": "3.4.0",
   "dependencies": [
     {
-      "name": "credits.aleo",
+      "name": "test_usdcx_stablecoin.aleo",
       "location": "network",
       "network": "testnetbeta"
     },

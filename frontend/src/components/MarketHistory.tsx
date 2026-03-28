@@ -138,14 +138,14 @@ export function MarketHistory({
 
                 <div className="flex justify-between text-sm text-gray-400">
                   <span>
-                    YES: {formatPool(marketData.yesPool)} credits
+                    YES: {formatPool(marketData.yesPool)} USDC
                   </span>
                   <span>
-                    NO: {formatPool(marketData.noPool)} credits
+                    NO: {formatPool(marketData.noPool)} USDC
                   </span>
                 </div>
                 <div className="text-xs text-gray-500 text-center">
-                  Total Pool: {formatCredits(totalPool)} credits
+                  Total Pool: {formatCredits(totalPool)} USDC
                 </div>
 
                 {marketData.status === MarketStatus.RESOLVED &&

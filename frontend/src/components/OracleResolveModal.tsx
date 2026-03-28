@@ -97,7 +97,7 @@ export function ResolveModal({
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Total Pool:</span>
             <span className="text-white font-mono">
-              {formatCredits(totalPool)} credits
+              {formatCredits(totalPool)} USDC
             </span>
           </div>
           <div className="flex justify-between text-sm">

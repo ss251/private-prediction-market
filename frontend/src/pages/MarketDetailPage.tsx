@@ -233,7 +233,7 @@ export function MarketDetailPage() {
               <>
                 <div className="flex items-baseline justify-between mb-3 sm:mb-4">
                   <h2 className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-wider">Probability</h2>
-                  <span className="text-[11px] sm:text-xs text-gray-600 font-mono">{totalPoolFormatted} credits in pool</span>
+                  <span className="text-[11px] sm:text-xs text-gray-600 font-mono">{totalPoolFormatted} USDC in pool</span>
                 </div>
 
                 {/* Large probability display — only for non-open markets */}
@@ -255,8 +255,8 @@ export function MarketDetailPage() {
                 </div>
 
                 <div className="flex justify-between text-xs text-gray-500 font-mono">
-                  <span>YES: {formatPool(BigInt(market.yesPool))} credits</span>
-                  <span>NO: {formatPool(BigInt(market.noPool))} credits</span>
+                  <span>YES: {formatPool(BigInt(market.yesPool))} USDC</span>
+                  <span>NO: {formatPool(BigInt(market.noPool))} USDC</span>
                 </div>
               </>
             )}
@@ -305,7 +305,7 @@ export function MarketDetailPage() {
                     Hidden
                   </span>
                 ) : (
-                  <span className="text-white font-mono">{formatCredits(BigInt(totalPool))} credits</span>
+                  <span className="text-white font-mono">{formatCredits(BigInt(totalPool))} USDC</span>
                 )}
               </div>
               {market.endTime && (
